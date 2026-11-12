@@ -1,7 +1,8 @@
 --[[
 	NEWLOC UI  -  biblioteca de UI estilo menu FiveM (Roblox / Luau)
 
-	Janela:   Library:CreateWindow({ Name, Subtitle, ToggleKey, Nickname, Logo, Banner, Avatar, Width, Height, Settings })
+	Janela:   Library:CreateWindow({ ToggleKey, Nickname, Avatar, Width, Height, Settings })
+	Titulo, subtitulo, logo, banner, textos e splash: edite a tabela SOURCE no topo deste arquivo.
 	Aba:      Window:CreateTab({ Name, Icon })
 	Secao:    Tab:CreateSection("Nome")  ou  { Name = "Nome", Side = "Left"/"Right" }
 	Elementos (Section:):
@@ -21,6 +22,25 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
+
+------------------------------------------------------------------ CONFIG DO CODIGO-FONTE
+-- Edite aqui (so quem tem a source mexe). Nao aparece na aba Configuracoes.
+local SOURCE = {
+	Title = "NEWLOC MENU",                         -- titulo grande da sidebar
+	Subtitle = "UI Library",                       -- subtitulo da sidebar
+	Logo = "",                                     -- ID ou link de imagem (substitui o titulo grande se quiser)
+	Banner = "",                                   -- ID ou link da imagem do banner
+	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
+	WelcomeSub = "Aproveite sua experiência com o {title}.",
+
+	Splash = {                                     -- telinha de abertura
+		Enabled = true,
+		Title = "NEWLOC MENU",
+		Subtitle = "Carregando...",
+		Image = "",                                -- ID ou link (opcional)
+		Duration = 2.5,                            -- segundos
+	},
+}
 
 local Library = {}
 local Window = {}
@@ -240,11 +260,12 @@ end
 
 function Window:SetState(s)
 	self.State = s
-	self.Main.Visible = (s == "open")
-	self.Pill.Visible = (s == "minimized")
+	self.Main.Visible = (s == "open") and not self.Splashing
+	self.Pill.Visible = (s == "minimized") and not self.Splashing
 end
 
 function Window:Toggle()
+	if self.Splashing then return end
 	if self.State == "hidden" then
 		self:SetState(self.LastState or "open")
 	else
@@ -1048,14 +1069,8 @@ function Window:_buildSettings()
 
 	-- personalizacao
 	local p = tab:CreateSection("Personalização")
-	p:CreateInput({ Name = "Título do menu", Flag = "cfg/title", CurrentValue = w.Title, Callback = function(t) w:SetTitle(t) end })
-	p:CreateInput({ Name = "Subtítulo", Flag = "cfg/subtitle", CurrentValue = w.Subtitle, Callback = function(t) w:SetSubtitle(t) end })
-	p:CreateInput({ Name = "Logo (ID ou link)", Flag = "cfg/logo", Placeholder = "ID / link da imagem", Callback = function(t) w:SetLogo(t) end })
 	p:CreateInput({ Name = "Nickname", Flag = "cfg/nick", CurrentValue = w.Nick, Callback = function(t) w:SetNickname(t) end })
 	p:CreateInput({ Name = "Foto de perfil", Flag = "cfg/avatar", Placeholder = "ID / link (vazio = padrão)", Callback = function(t) w:SetAvatar(t) end })
-	p:CreateInput({ Name = "Imagem do banner", Flag = "cfg/banner", Placeholder = "ID / link da imagem", Callback = function(t) w:SetBanner(t) end })
-	p:CreateInput({ Name = "Texto do banner", Flag = "cfg/welcome", CurrentValue = w.WelcomeText, Callback = function(t) w:SetWelcome(t) end })
-	p:CreateInput({ Name = "Subtexto do banner", Flag = "cfg/welcomesub", CurrentValue = w.WelcomeSub, Callback = function(t) w:SetWelcome(nil, t) end })
 	p:CreateLabel("Dica: use {nick} e {title} nos textos do banner.")
 	p:CreateSlider({ Name = "Opacidade do menu", Flag = "cfg/opacity", Range = { 30, 100 }, CurrentValue = 100, Suffix = "%", Callback = function(v) w:SetOpacity(v / 100) end })
 	p:CreateToggle({ Name = "Mostrar FPS / Ping", Flag = "cfg/stats", CurrentValue = false, Callback = function(v) w.StatsFrame.Visible = v end })
@@ -1149,6 +1164,52 @@ function Window:_buildSettings()
 	f:CreateButton({ Name = "Resetar tudo", NameButton = "Resetar", Callback = function() w:ResetAll() end })
 end
 
+------------------------------------------------------------------ splash (tela de abertura)
+
+function Window:_splash()
+	local w, S = self, SOURCE.Splash
+	w.Splashing = true
+	w.Main.Visible = false
+	task.spawn(function()
+		local img = ResolveImage(S.Image)
+		local group = New("CanvasGroup", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, GroupTransparency = 1, ZIndex = 100, Parent = w.Gui })
+		New("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4, BorderSizePixel = 0, Parent = group })
+		local panel = New("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(380, 200),
+			BackgroundColor3 = w.Theme.Card, Parent = group,
+		})
+		Round(panel, 14)
+		Stroke(panel, w.Theme.Accent, 1.5)
+		local hasImg = img ~= ""
+		if hasImg then
+			New("ImageLabel", { Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 14), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = img, Parent = panel })
+		end
+		local t = New("TextLabel", {
+			Size = UDim2.new(1, -40, 0, 38), Position = UDim2.fromOffset(20, hasImg and 66 or 40), BackgroundTransparency = 1,
+			Text = S.Title, Font = FONTX, TextSize = 30, TextScaled = true, TextColor3 = w.Theme.Text, Parent = panel,
+		})
+		New("UITextSizeConstraint", { MaxTextSize = 30, MinTextSize = 12, Parent = t })
+		New("TextLabel", {
+			Size = UDim2.new(1, -40, 0, 20), Position = UDim2.fromOffset(20, hasImg and 108 or 84), BackgroundTransparency = 1,
+			Text = S.Subtitle, Font = FONT, TextSize = 14, TextColor3 = w.Theme.SubText, Parent = panel,
+		})
+		local track = New("Frame", { Size = UDim2.new(0.7, 0, 0, 5), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 160), BackgroundColor3 = w.Theme.Stroke, Parent = panel })
+		Round(track, 3)
+		local fill = New("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = w.Theme.Accent, Parent = track })
+		Round(fill, 3)
+
+		local dur = S.Duration or 2.5
+		Tween(group, { GroupTransparency = 0 }, 0.35)
+		TweenService:Create(fill, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { Size = UDim2.fromScale(1, 1) }):Play()
+		task.wait(dur)
+		Tween(group, { GroupTransparency = 1 }, 0.35)
+		task.wait(0.4)
+		group:Destroy()
+		w.Splashing = false
+		w:SetState(w.State)
+	end)
+end
+
 ------------------------------------------------------------------ criar janela
 
 function Library:CreateWindow(o)
@@ -1158,10 +1219,10 @@ function Library:CreateWindow(o)
 		Tabs = {}, Conns = {}, Keybinds = {},
 		ToggleKey = o.ToggleKey or Enum.KeyCode.RightControl,
 		State = "open", Opacity = 1,
-		Title = o.Name or "NEWLOC MENU", Subtitle = o.Subtitle or "UI Library",
+		Title = SOURCE.Title, Subtitle = SOURCE.Subtitle,
 		Nick = o.Nickname or LocalPlayer.DisplayName,
-		WelcomeText = o.WelcomeText or "Bem-vindo de volta, {nick}!",
-		WelcomeSub = o.WelcomeSub or "Aproveite sua experiência com o {title}.",
+		WelcomeText = SOURCE.WelcomeText,
+		WelcomeSub = SOURCE.WelcomeSub,
 		FPS = 0, Ping = 0,
 	}, Window)
 
@@ -1443,12 +1504,13 @@ function Library:CreateWindow(o)
 	end)
 
 	-- inicial
-	w:SetLogo(o.Logo)
-	w:SetBanner(o.Banner)
+	w:SetLogo(SOURCE.Logo)
+	w:SetBanner(SOURCE.Banner)
 	w:SetAvatar(o.Avatar)
 	w:_layoutLogo()
 	w:_refreshBanner()
 	if o.Settings ~= false then w:_buildSettings() end
+	if SOURCE.Splash and SOURCE.Splash.Enabled then w:_splash() end
 	return w
 end
 
