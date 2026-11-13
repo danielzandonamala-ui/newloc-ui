@@ -33,7 +33,7 @@ local SOURCE = {
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
-	ButtonIcon = "https://raw.githubusercontent.com/danielzandonamala-ui/newloc-ui/refs/heads/main/fingerprint.png",
+	ButtonIcon = "http://github.com/danielzandonamala-ui/newloc-ui/blob/main/fingerprint.png",
 	                                               -- png do icone dos botoes (impressao digital); suba fingerprint.png no GitHub.
 	                                               -- Se vazio/falhar, usa um desenho padrao.
 
