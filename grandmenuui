@@ -41,7 +41,7 @@ local SOURCE = {
 		Enabled = true,
 		Title = "Grand Menu",
 		Subtitle = "Carregando...",
-		Image = "https://images-ext-1.discordapp.net/external/b4_McQaBD_9gdu6hX6pXKmnX7ckOQ5YmRA8CQN44D2Q/%3Fsize%3D2048/https/cdn.discordapp.com/icons/1339204679585763359/b735926caa38e58523994b9601e0f813.png?format=webp&quality=lossless&width=384&height=384",                                -- ID ou link (opcional)
+		Image = "https://images-ext-1.discordapp.net/external/b4_McQaBD_9gdu6hX6pXKmnX7ckOQ5YmRA8CQN44D2Q/%3Fsize%3D2048/https/cdn.discordapp.com/icons/1339204679585763359/b735926caa38e58523994b9601e0f813.png?format=webp&quality=lossless",                                -- ID ou link (opcional)
 		Duration = 2.5,                            -- segundos
 	},
 }
