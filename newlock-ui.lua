@@ -279,13 +279,13 @@ local function GetFingerprint()
 end
 
 local function AddFingerprint(parent)
-	local holder = New("Frame", { Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 9, 0.5, 0), BackgroundTransparency = 1, Parent = parent })
+	local holder = New("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = parent })
 	task.spawn(function()
 		local img = GetFingerprint()
 		if img ~= "" then
 			New("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = img, ScaleType = Enum.ScaleType.Fit, Parent = holder })
 		else
-			for _, sz in ipairs({ 14, 9, 4 }) do
+			for _, sz in ipairs({ 16, 10, 4 }) do
 				local r = New("Frame", { Size = UDim2.fromOffset(sz, sz), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = holder })
 				Round(r, sz)
 				Stroke(r, Color3.new(1, 1, 1), 1.5)
@@ -724,18 +724,17 @@ function Section:CreateButton(o)
 	local w = self.Window
 	local row = self:_row(o.Name)
 	local b = New("TextButton", {
-		Text = o.NameButton or "Executar", Font = FONTB, TextSize = 12, AutoButtonColor = false,
-		Size = UDim2.fromOffset(100, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
-		TextColor3 = Color3.new(1, 1, 1), Parent = row,
+		Text = "", AutoButtonColor = false,
+		Size = UDim2.fromOffset(40, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+		Parent = row,
 	})
 	w:Bind(b, "BackgroundColor3", "Accent")
 	Round(b, 6)
-	Pad(b, 24, 0, 6, 0)
 	AddFingerprint(b)
 	b.MouseEnter:Connect(function() Tween(b, { BackgroundTransparency = 0.2 }, 0.1) end)
 	b.MouseLeave:Connect(function() Tween(b, { BackgroundTransparency = 0 }, 0.1) end)
 	b.MouseButton1Click:Connect(function() fire(o.Callback) end)
-	return { Button = b, SetText = function(_, t) b.Text = t end }
+	return { Button = b }
 end
 
 function Section:CreateToggle(o)
