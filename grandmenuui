@@ -1143,7 +1143,6 @@ function Window:_buildSettings()
 	local p = tab:CreateSection("Personalização")
 	p:CreateInput({ Name = "Nickname", Flag = "cfg/nick", CurrentValue = w.Nick, Callback = function(t) w:SetNickname(t) end })
 	p:CreateInput({ Name = "Foto de perfil", Flag = "cfg/avatar", Placeholder = "ID / link (vazio = padrão)", Callback = function(t) w:SetAvatar(t) end })
-	p:CreateLabel("Dica: use {nick} e {title} nos textos do banner.")
 	p:CreateSlider({ Name = "Opacidade do menu", Flag = "cfg/opacity", Range = { 30, 100 }, CurrentValue = 100, Suffix = "%", Callback = function(v) w:SetOpacity(v / 100) end })
 	p:CreateToggle({ Name = "Mostrar FPS / Ping", Flag = "cfg/stats", CurrentValue = false, Callback = function(v) w.StatsFrame.Visible = v end })
 
