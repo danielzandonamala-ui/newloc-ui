@@ -61,8 +61,8 @@ local AUTOY, AUTOX = Enum.AutomaticSize.Y, Enum.AutomaticSize.X
 ------------------------------------------------------------------ tema
 
 local DefaultTheme = {
-	Accent = Color3.fromRGB(41, 131, 15),
-	Background = Color3.fromRGB(13, 12, 20),
+	Accent = Color3.fromRGB(34, 197, 94),
+	Background = Color3.fromRGB(34, 197, 94),
 	Sidebar = Color3.fromRGB(16, 14, 25),
 	Card = Color3.fromRGB(20, 18, 31),
 	Element = Color3.fromRGB(30, 27, 44),
