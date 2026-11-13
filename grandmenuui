@@ -26,10 +26,10 @@ local LocalPlayer = Players.LocalPlayer
 ------------------------------------------------------------------ CONFIG DO CODIGO-FONTE
 -- Edite aqui (so quem tem a source mexe). Nao aparece na aba Configuracoes.
 local SOURCE = {
-	Title = "NEWLOC MENU",                         -- titulo grande da sidebar
-	Subtitle = "UI Library",                       -- subtitulo da sidebar
-	Logo = "",                                     -- ID ou link de imagem (substitui o titulo grande se quiser)
-	Banner = "",                                   -- ID ou link da imagem do banner
+	Title = "Grand Menu",                         -- titulo grande da sidebar
+	Subtitle = "https://discord.gg/vwyEenG7t2",                       -- subtitulo da sidebar
+	Logo = "https://images-ext-1.discordapp.net/external/b4_McQaBD_9gdu6hX6pXKmnX7ckOQ5YmRA8CQN44D2Q/%3Fsize%3D2048/https/cdn.discordapp.com/icons/1339204679585763359/b735926caa38e58523994b9601e0f813.png?format=webp&quality=lossless",                                     -- ID ou link de imagem (substitui o titulo grande se quiser)
+	Banner = "https://yt3.googleusercontent.com/KePQVVTq_9YpEkZeFhahKJsC50XcVxPuXm1bAVKvhf5Cgu3cVctCCI-fca5AXOpYzIoku-lBcA=w1707-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj",                                   -- ID ou link da imagem do banner
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
@@ -39,9 +39,9 @@ local SOURCE = {
 
 	Splash = {                                     -- telinha de abertura
 		Enabled = true,
-		Title = "NEWLOC MENU",
+		Title = "Grand Menu",
 		Subtitle = "Carregando...",
-		Image = "",                                -- ID ou link (opcional)
+		Image = "https://images-ext-1.discordapp.net/external/b4_McQaBD_9gdu6hX6pXKmnX7ckOQ5YmRA8CQN44D2Q/%3Fsize%3D2048/https/cdn.discordapp.com/icons/1339204679585763359/b735926caa38e58523994b9601e0f813.png?format=webp&quality=lossless",                                -- ID ou link (opcional)
 		Duration = 2.5,                            -- segundos
 	},
 }
