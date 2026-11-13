@@ -26,10 +26,10 @@ local LocalPlayer = Players.LocalPlayer
 ------------------------------------------------------------------ CONFIG DO CODIGO-FONTE
 -- Edite aqui (so quem tem a source mexe). Nao aparece na aba Configuracoes.
 local SOURCE = {
-	Title = "Grand Menu",                         -- titulo grande da sidebar
-	Subtitle = "https://discord.gg/vwyEenG7t2",                       -- subtitulo da sidebar
-	Logo = "https://images-ext-1.discordapp.net/external/b4_McQaBD_9gdu6hX6pXKmnX7ckOQ5YmRA8CQN44D2Q/%3Fsize%3D2048/https/cdn.discordapp.com/icons/1339204679585763359/b735926caa38e58523994b9601e0f813.png?format=webp&quality=lossless&width=384&height=384",                                     -- ID ou link de imagem (substitui o titulo grande se quiser)
-	Banner = "https://yt3.googleusercontent.com/KePQVVTq_9YpEkZeFhahKJsC50XcVxPuXm1bAVKvhf5Cgu3cVctCCI-fca5AXOpYzIoku-lBcA=w1707-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj",                                   -- ID ou link da imagem do banner
+	Title = "NEWLOC MENU",                         -- titulo grande da sidebar
+	Subtitle = "UI Library",                       -- subtitulo da sidebar
+	Logo = "",                                     -- ID ou link de imagem (substitui o titulo grande se quiser)
+	Banner = "",                                   -- ID ou link da imagem do banner
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
@@ -39,9 +39,9 @@ local SOURCE = {
 
 	Splash = {                                     -- telinha de abertura
 		Enabled = true,
-		Title = "Grand Menu",
+		Title = "NEWLOC MENU",
 		Subtitle = "Carregando...",
-		Image = "https://images-ext-1.discordapp.net/external/b4_McQaBD_9gdu6hX6pXKmnX7ckOQ5YmRA8CQN44D2Q/%3Fsize%3D2048/https/cdn.discordapp.com/icons/1339204679585763359/b735926caa38e58523994b9601e0f813.png?format=webp&quality=lossless",                                -- ID ou link (opcional)
+		Image = "",                                -- ID ou link (opcional)
 		Duration = 2.5,                            -- segundos
 	},
 }
@@ -279,13 +279,13 @@ local function GetFingerprint()
 end
 
 local function AddFingerprint(parent)
-	local holder = New("Frame", { Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 9, 0.5, 0), BackgroundTransparency = 1, Parent = parent })
+	local holder = New("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = parent })
 	task.spawn(function()
 		local img = GetFingerprint()
 		if img ~= "" then
 			New("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = img, ScaleType = Enum.ScaleType.Fit, Parent = holder })
 		else
-			for _, sz in ipairs({ 14, 9, 4 }) do
+			for _, sz in ipairs({ 16, 10, 4 }) do
 				local r = New("Frame", { Size = UDim2.fromOffset(sz, sz), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = holder })
 				Round(r, sz)
 				Stroke(r, Color3.new(1, 1, 1), 1.5)
@@ -724,18 +724,17 @@ function Section:CreateButton(o)
 	local w = self.Window
 	local row = self:_row(o.Name)
 	local b = New("TextButton", {
-		Text = o.NameButton or "Executar", Font = FONTB, TextSize = 12, AutoButtonColor = false,
-		Size = UDim2.fromOffset(100, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
-		TextColor3 = Color3.new(1, 1, 1), Parent = row,
+		Text = "", AutoButtonColor = false,
+		Size = UDim2.fromOffset(40, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+		Parent = row,
 	})
 	w:Bind(b, "BackgroundColor3", "Accent")
 	Round(b, 6)
-	Pad(b, 24, 0, 6, 0)
 	AddFingerprint(b)
 	b.MouseEnter:Connect(function() Tween(b, { BackgroundTransparency = 0.2 }, 0.1) end)
 	b.MouseLeave:Connect(function() Tween(b, { BackgroundTransparency = 0 }, 0.1) end)
 	b.MouseButton1Click:Connect(function() fire(o.Callback) end)
-	return { Button = b, SetText = function(_, t) b.Text = t end }
+	return { Button = b }
 end
 
 function Section:CreateToggle(o)
@@ -1143,6 +1142,7 @@ function Window:_buildSettings()
 	local p = tab:CreateSection("Personalização")
 	p:CreateInput({ Name = "Nickname", Flag = "cfg/nick", CurrentValue = w.Nick, Callback = function(t) w:SetNickname(t) end })
 	p:CreateInput({ Name = "Foto de perfil", Flag = "cfg/avatar", Placeholder = "ID / link (vazio = padrão)", Callback = function(t) w:SetAvatar(t) end })
+	p:CreateLabel("Dica: use {nick} e {title} nos textos do banner.")
 	p:CreateSlider({ Name = "Opacidade do menu", Flag = "cfg/opacity", Range = { 30, 100 }, CurrentValue = 100, Suffix = "%", Callback = function(v) w:SetOpacity(v / 100) end })
 	p:CreateToggle({ Name = "Mostrar FPS / Ping", Flag = "cfg/stats", CurrentValue = false, Callback = function(v) w.StatsFrame.Visible = v end })
 
