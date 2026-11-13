@@ -33,6 +33,10 @@ local SOURCE = {
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
+	ButtonIcon = "https://raw.githubusercontent.com/danielzandonamala-ui/newloc-ui/refs/heads/main/fingerprint.png",
+	                                               -- png do icone dos botoes (impressao digital); suba fingerprint.png no GitHub.
+	                                               -- Se vazio/falhar, usa um desenho padrao.
+
 	Splash = {                                     -- telinha de abertura
 		Enabled = true,
 		Title = "NEWLOC MENU",
@@ -224,6 +228,72 @@ local function MakeDraggable(w, handle, target, onClick)
 	end)
 end
 
+-- icones desenhados com formas (nao dependem de fonte/emoji)
+local function DrawIcon(w, parent, kind, key)
+	local c = New("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = parent })
+	local function paint(inst, prop)
+		if typeof(key) == "Color3" then inst[prop] = key else w:Bind(inst, prop, key) end
+	end
+	local function bar(bw, bh, x, y, rot)
+		local f = New("Frame", { Size = UDim2.fromOffset(bw, bh), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y), Rotation = rot or 0, BorderSizePixel = 0, Parent = c })
+		paint(f, "BackgroundColor3")
+		Round(f, 1)
+	end
+	local function ring(size, x, y, th)
+		local r = New("Frame", { Size = UDim2.fromOffset(size, size), Position = UDim2.fromOffset(x, y), BackgroundTransparency = 1, Parent = c })
+		Round(r, size)
+		local st = Stroke(r, Color3.new(1, 1, 1), th)
+		paint(st, "Color")
+	end
+	if kind == "x" then
+		bar(14, 2, 8, 8, 45)
+		bar(14, 2, 8, 8, -45)
+	elseif kind == "min" then
+		bar(12, 2, 8, 8)
+	elseif kind == "search" then
+		ring(11, 0, 0, 2)
+		bar(6, 2, 12.5, 12.5, 45)
+	elseif kind == "check" then
+		bar(5, 2, 4.5, 9, 45)
+		bar(10, 2, 9.5, 7.5, -50)
+	elseif kind == "info" then
+		ring(15, 0.5, 0.5, 1.5)
+		local l = New("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "i", Font = FONTB, TextSize = 11, Parent = c })
+		paint(l, "TextColor3")
+	end
+	return c
+end
+
+-- icone dos botoes: png (SOURCE.ButtonIcon) ou desenho padrao
+local fpAsset, fpLoading
+local function GetFingerprint()
+	if fpAsset ~= nil then return fpAsset end
+	while fpLoading do
+		task.wait()
+		if fpAsset ~= nil then return fpAsset end
+	end
+	fpLoading = true
+	fpAsset = ResolveImage(SOURCE.ButtonIcon)
+	fpLoading = false
+	return fpAsset
+end
+
+local function AddFingerprint(parent)
+	local holder = New("Frame", { Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 9, 0.5, 0), BackgroundTransparency = 1, Parent = parent })
+	task.spawn(function()
+		local img = GetFingerprint()
+		if img ~= "" then
+			New("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = img, ScaleType = Enum.ScaleType.Fit, Parent = holder })
+		else
+			for _, sz in ipairs({ 14, 9, 4 }) do
+				local r = New("Frame", { Size = UDim2.fromOffset(sz, sz), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = holder })
+				Round(r, sz)
+				Stroke(r, Color3.new(1, 1, 1), 1.5)
+			end
+		end
+	end)
+end
+
 ------------------------------------------------------------------ janela: base
 
 function Window:Connect(signal, fn)
@@ -302,11 +372,11 @@ function Window:Notify(o)
 	})
 	Round(f, 10)
 	Stroke(f, self.Theme.Accent, 1)
-	local ic = New("TextLabel", {
-		Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(12, 15), BackgroundColor3 = self.Theme.Accent,
-		Text = "✓", Font = FONTB, TextSize = 15, TextColor3 = Color3.new(1, 1, 1), Parent = f,
+	local ic = New("Frame", {
+		Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(12, 15), BackgroundColor3 = self.Theme.Accent, Parent = f,
 	})
 	Round(ic, 14)
+	DrawIcon(self, ic, "check", Color3.new(1, 1, 1))
 	New("TextLabel", {
 		Size = UDim2.new(1, -60, 0, 18), Position = UDim2.fromOffset(52, 10), BackgroundTransparency = 1, Font = FONTB,
 		TextSize = 13, TextXAlignment = LEFT, TextColor3 = self.Theme.Text, Text = tostring(o.Title or "NEWLOC"),
@@ -655,11 +725,13 @@ function Section:CreateButton(o)
 	local row = self:_row(o.Name)
 	local b = New("TextButton", {
 		Text = o.NameButton or "Executar", Font = FONTB, TextSize = 12, AutoButtonColor = false,
-		Size = UDim2.fromOffset(92, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.fromOffset(100, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
 		TextColor3 = Color3.new(1, 1, 1), Parent = row,
 	})
 	w:Bind(b, "BackgroundColor3", "Accent")
 	Round(b, 6)
+	Pad(b, 24, 0, 6, 0)
+	AddFingerprint(b)
 	b.MouseEnter:Connect(function() Tween(b, { BackgroundTransparency = 0.2 }, 0.1) end)
 	b.MouseLeave:Connect(function() Tween(b, { BackgroundTransparency = 0 }, 0.1) end)
 	b.MouseButton1Click:Connect(function() fire(o.Callback) end)
@@ -777,7 +849,7 @@ function Section:CreateDropdown(o)
 	w:Bind(btn, "BackgroundColor3", "Background")
 	Round(btn, 6)
 	local txt = Label(w, btn, { Size = UDim2.new(1, -26, 1, 0), Position = UDim2.fromOffset(8, 0), TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd })
-	Label(w, btn, { Size = UDim2.fromOffset(16, 24), Position = UDim2.new(1, -20, 0, 0), Text = "▾", TextSize = 12, TextXAlignment = CENTER }, "SubText")
+	Label(w, btn, { Size = UDim2.fromOffset(16, 24), Position = UDim2.new(1, -20, 0, 0), Text = "v", Font = FONTB, TextSize = 11, TextXAlignment = CENTER }, "SubText")
 	local list = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, Visible = false, LayoutOrder = 2, Parent = box })
 	w:Bind(list, "BackgroundColor3", "Background")
 	Round(list, 6)
@@ -1289,7 +1361,8 @@ function Library:CreateWindow(o)
 	Round(w.Avatar, 20)
 	w.NameLabel = Label(w, card, { Size = UDim2.new(1, -90, 0, 18), Position = UDim2.fromOffset(56, 10), Text = w.Nick, Font = FONTB, TextSize = 13, TextTruncate = Enum.TextTruncate.AtEnd })
 	Label(w, card, { Size = UDim2.new(1, -90, 0, 16), Position = UDim2.fromOffset(56, 30), Text = "ID: " .. LocalPlayer.UserId, TextSize = 11 }, "SubText")
-	Label(w, card, { Size = UDim2.fromOffset(20, 58), Position = UDim2.new(1, -24, 0, 0), Text = "ⓘ", TextSize = 14, TextXAlignment = CENTER }, "Accent")
+	local ib = New("Frame", { Size = UDim2.fromOffset(20, 58), Position = UDim2.new(1, -24, 0, 0), BackgroundTransparency = 1, Parent = card })
+	DrawIcon(w, ib, "info", "Accent")
 	card.MouseEnter:Connect(function() Tween(card, { BackgroundTransparency = 0.15 }, 0.12) end)
 	card.MouseLeave:Connect(function() Tween(card, { BackgroundTransparency = 0.4 }, 0.12) end)
 
@@ -1298,25 +1371,26 @@ function Library:CreateWindow(o)
 	local top = New("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1, Active = true, Parent = content })
 	MakeDraggable(w, top, main)
 
-	local function topBtn(txt, x)
+	local function topBtn(kind, x)
 		local b = New("TextButton", {
-			Text = txt, Font = FONTB, TextSize = 14, AutoButtonColor = false, Size = UDim2.fromOffset(28, 28),
+			Text = "", AutoButtonColor = false, Size = UDim2.fromOffset(28, 28),
 			AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, x, 0, 24), Parent = top,
 		})
 		w:Bind(b, "BackgroundColor3", "Element")
-		w:Bind(b, "TextColor3", "Text")
 		Round(b, 7)
+		DrawIcon(w, b, kind, "Text")
 		b.MouseEnter:Connect(function() Tween(b, { BackgroundColor3 = w.Theme.Accent }, 0.1) end)
 		b.MouseLeave:Connect(function() Tween(b, { BackgroundColor3 = w.Theme.Element }, 0.1) end)
 		return b
 	end
-	topBtn("✕", -12).MouseButton1Click:Connect(function() w.LastState = "open" w:SetState("hidden") end)
-	topBtn("—", -46).MouseButton1Click:Connect(function() w:SetState("minimized") end)
+	topBtn("x", -12).MouseButton1Click:Connect(function() w.LastState = "open" w:SetState("hidden") end)
+	topBtn("min", -46).MouseButton1Click:Connect(function() w:SetState("minimized") end)
 
 	local sbox = New("Frame", { Size = UDim2.fromOffset(210, 30), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -82, 0, 24), Parent = top })
 	w:Bind(sbox, "BackgroundColor3", "Element")
 	Round(sbox, 8)
-	Label(w, sbox, { Size = UDim2.fromOffset(26, 30), Text = "⌕", TextSize = 18, TextXAlignment = CENTER }, "SubText")
+	local sIcon = New("Frame", { Size = UDim2.fromOffset(26, 30), BackgroundTransparency = 1, Parent = sbox })
+	DrawIcon(w, sIcon, "search", "SubText")
 	w.SearchBox = New("TextBox", {
 		Size = UDim2.new(1, -32, 1, 0), Position = UDim2.fromOffset(28, 0), BackgroundTransparency = 1, Font = FONT, TextSize = 12,
 		TextXAlignment = LEFT, PlaceholderText = "Buscar opção...", Text = "", ClearTextOnFocus = false, Parent = sbox,
@@ -1386,10 +1460,10 @@ function Library:CreateWindow(o)
 	local pnst = Stroke(panel, w.Theme.Accent, 1)
 	w:Bind(pnst, "Color", "Accent")
 	Label(w, panel, { Size = UDim2.new(1, -60, 0, 36), Position = UDim2.fromOffset(16, 4), Text = "Informações", Font = FONTB, TextSize = 16 })
-	local xb = New("TextButton", { Text = "✕", Font = FONTB, TextSize = 14, AutoButtonColor = false, Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -36, 0, 9), Parent = panel })
+	local xb = New("TextButton", { Text = "", AutoButtonColor = false, Size = UDim2.fromOffset(26, 26), Position = UDim2.new(1, -36, 0, 9), Parent = panel })
 	w:Bind(xb, "BackgroundColor3", "Element")
-	w:Bind(xb, "TextColor3", "Text")
 	Round(xb, 7)
+	DrawIcon(w, xb, "x", "Text")
 	xb.MouseButton1Click:Connect(function() modal.Visible = false end)
 
 	local infoTabsBar = New("Frame", { Size = UDim2.new(1, -32, 0, 28), Position = UDim2.fromOffset(16, 44), BackgroundTransparency = 1, Parent = panel })
