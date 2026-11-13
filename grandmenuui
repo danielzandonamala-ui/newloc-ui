@@ -33,7 +33,7 @@ local SOURCE = {
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
-	ButtonIcon = "http://github.com/danielzandonamala-ui/newloc-ui/blob/main/fingerprint.png",
+	ButtonIcon = "https://raw.githubusercontent.com/danielzandonamala-ui/newloc-ui/refs/heads/main/fingerprint.png",
 	                                               -- png do icone dos botoes (impressao digital); suba fingerprint.png no GitHub.
 	                                               -- Se vazio/falhar, usa um desenho padrao.
 
@@ -61,7 +61,7 @@ local AUTOY, AUTOX = Enum.AutomaticSize.Y, Enum.AutomaticSize.X
 ------------------------------------------------------------------ tema
 
 local DefaultTheme = {
-	Accent = Color3.fromRGB(124, 58, 237),
+	Accent = Color3.fromRGB(41, 131, 15),
 	Background = Color3.fromRGB(13, 12, 20),
 	Sidebar = Color3.fromRGB(16, 14, 25),
 	Card = Color3.fromRGB(20, 18, 31),
