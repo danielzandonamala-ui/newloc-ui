@@ -71,7 +71,6 @@ local DefaultTheme = {
 	Stroke = Color3.fromRGB(48, 43, 70),
 }
 
-
 local ThemeOrder = {
 	{ "Accent", "Cor principal (destaque)" },
 	{ "Background", "Fundo do menu" },
