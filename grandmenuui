@@ -1288,7 +1288,7 @@ function Library:CreateWindow(o)
 	local w = setmetatable({
 		Theme = table.clone(DefaultTheme), Flags = {}, Elements = {}, Binds = {}, Refreshers = {}, Opaque = {},
 		Tabs = {}, Conns = {}, Keybinds = {},
-		ToggleKey = o.ToggleKey or Enum.KeyCode.RightControl,
+		ToggleKey = o.ToggleKey or Enum.KeyCode.K,
 		State = "open", Opacity = 1,
 		Title = SOURCE.Title, Subtitle = SOURCE.Subtitle,
 		Nick = o.Nickname or LocalPlayer.DisplayName,
