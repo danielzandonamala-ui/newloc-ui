@@ -1,13 +1,16 @@
 --[[
 	NEWLOC UI  -  biblioteca de UI estilo menu FiveM (Roblox / Luau)
 
-	Janela:   Library:CreateWindow({ ToggleKey, Nickname, Avatar, Width, Height, Settings })
+	Janela:   Library:CreateWindow({ ToggleKey, Nickname, Avatar, Width, Height, Settings, CloseOnOutsideClick })
 	          ToggleKey padrao = K  ->  minimiza / restaura o menu
+	          CloseOnOutsideClick = false (padrao) -> dropdown e seletor de cor NAO fecham sozinhos ao clicar.
+	          Coloque true se quiser que fechem ao clicar fora deles.
 	Titulo, subtitulo, logo, banner, textos e splash: edite a tabela SOURCE no topo deste arquivo.
 	Aba:      Window:CreateTab({ Name, Icon })
 	Secao:    Tab:CreateSection("Nome")  ou  { Name = "Nome", Side = "Left"/"Right" }
 	Elementos (Section:):
-		CreateButton ({ Name, Callback, Icon = "copy" opcional }), CreateToggle, CreateSlider, CreateDropdown,
+		CreateButton ({ Name, Callback, Icon = "copy" opcional }), CreateToggle, CreateSlider,
+		CreateDropdown ({ Name, Options, CurrentValue, Callback, CloseOnSelect = true/false }),
 		CreateSelector, CreateInput, CreateKeybind, CreateColorPicker, CreateLabel
 	Janela:   Notify, Toggle, ToggleMinimize, Minimize, SetSidebarCollapsed, SaveConfig, LoadConfig,
 	          ExportConfig, ImportConfig, Destroy
@@ -22,6 +25,7 @@ local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local MarketplaceService = game:GetService("MarketplaceService")
 local CoreGui = game:GetService("CoreGui")
+local GuiService = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -175,6 +179,24 @@ end
 local function Inside(g, p)
 	local a, s = g.AbsolutePosition, g.AbsoluteSize
 	return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
+end
+
+-- o toque/clique (input) caiu dentro do GuiObject g?
+-- Testa varias formas de coordenada (com e sem o inset da barra do topo, mouse e toque)
+-- e considera "dentro" se QUALQUER uma bater. Assim nunca fecha por engano.
+local function PressedInside(input, g)
+	if not g or not g.Parent then return false end
+	local p = input.Position
+	local inset = GuiService:GetGuiInset()
+	local candidates = {
+		Mouse(),
+		Vector2.new(p.X, p.Y),
+		Vector2.new(p.X + inset.X, p.Y + inset.Y),
+	}
+	for _, v in ipairs(candidates) do
+		if Inside(g, v) then return true end
+	end
+	return false
 end
 
 -- aceita ID numerico, rbxassetid:// ou link (precisa de writefile + getcustomasset no executor)
@@ -919,6 +941,9 @@ local function BuildChoice(self, o, kind)
 	return obj, w
 end
 
+-- Dropdown: so abre/fecha clicando no botao dele (ou escolhendo um item).
+-- NAO fecha sozinho ao clicar em outros lugares (a menos que a janela tenha CloseOnOutsideClick = true).
+-- Use CloseOnSelect = false para a lista continuar aberta depois de escolher um item.
 function Section:CreateDropdown(o)
 	local obj, w = BuildChoice(self, o)
 	local box = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, BackgroundTransparency = 1, LayoutOrder = self:_next(), Parent = self.Card })
@@ -958,7 +983,7 @@ function Section:CreateDropdown(o)
 			b.MouseLeave:Connect(function() b.BackgroundTransparency = 1 end)
 			b.MouseButton1Click:Connect(function()
 				obj:Set(opt)
-				list.Visible = false
+				if o.CloseOnSelect ~= false then list.Visible = false end
 			end)
 		end
 		render()
@@ -977,13 +1002,14 @@ function Section:CreateDropdown(o)
 	btn.MouseButton1Click:Connect(function()
 		list.Visible = not list.Visible
 	end)
-	-- clicar em qualquer lugar fora fecha a lista
-	w:Connect(UserInputService.InputBegan, function(i)
-		if list.Visible and IsPress(i) then
-			local m = Mouse()
-			if not Inside(list, m) and not Inside(btn, m) then list.Visible = false end
-		end
-	end)
+	-- opcional: clicar fora fecha a lista (desligado por padrao)
+	if w.CloseOnOutsideClick then
+		w:Connect(UserInputService.InputBegan, function(i)
+			if list.Visible and IsPress(i) then
+				if not PressedInside(i, list) and not PressedInside(i, btn) then list.Visible = false end
+			end
+		end)
+	end
 	table.insert(w.Refreshers, render)
 	self:_register(obj, o, "dropdown")
 	build()
@@ -1102,6 +1128,9 @@ function Section:CreateKeybind(o)
 	return obj
 end
 
+-- Seletor de cor: so abre/fecha clicando na caixinha de cor (ou Esc).
+-- NAO fecha sozinho ao clicar no quadrado, na barra de matiz, no hex ou nas cores rapidas
+-- (a menos que a janela tenha CloseOnOutsideClick = true).
 function Section:CreateColorPicker(o)
 	local w = self.Window
 	local box = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, BackgroundTransparency = 1, LayoutOrder = self:_next(), Parent = self.Card })
@@ -1214,14 +1243,13 @@ function Section:CreateColorPicker(o)
 	end)
 	preview.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
-	-- clicar em qualquer lugar fora do seletor (ou apertar Esc) fecha
+	-- Esc fecha. Clicar fora so fecha se a janela tiver CloseOnOutsideClick = true.
 	w:Connect(UserInputService.InputBegan, function(i)
 		if not panel.Visible then return end
 		if i.KeyCode == Enum.KeyCode.Escape then
 			panel.Visible = false
-		elseif IsPress(i) then
-			local m = Mouse()
-			if not Inside(panel, m) and not Inside(preview, m) then panel.Visible = false end
+		elseif w.CloseOnOutsideClick and IsPress(i) then
+			if not PressedInside(i, panel) and not PressedInside(i, preview) then panel.Visible = false end
 		end
 	end)
 
@@ -1392,6 +1420,7 @@ function Library:CreateWindow(o)
 		Theme = table.clone(DefaultTheme), Flags = {}, Elements = {}, Binds = {}, Refreshers = {}, Opaque = {},
 		Tabs = {}, Conns = {}, Keybinds = {},
 		ToggleKey = o.ToggleKey or Enum.KeyCode.K,
+		CloseOnOutsideClick = o.CloseOnOutsideClick == true,
 		State = "open", Opacity = 1, SideCollapsed = false,
 		Title = SOURCE.Title, Subtitle = SOURCE.Subtitle,
 		Nick = o.Nickname or LocalPlayer.DisplayName,
