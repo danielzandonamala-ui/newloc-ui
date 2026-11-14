@@ -36,7 +36,7 @@ local SOURCE = {
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
-	ButtonIcon = "",                               -- PNG branco (link ou ID) do icone dos botoes. SVG nao funciona.
+	ButtonIcon = "https://cdn.discordapp.com/attachments/1564421554572361880/1571187403111141396/mouse.png?ex=6af9d1cc&is=6af8804c&hm=24241649cebf7a491e462bf36c207f2556917c69d3bf03c693f427b183b49b69",                               -- PNG branco (link ou ID) do icone dos botoes. SVG nao funciona.
 	                                               -- Vazio = usa a impressao digital desenhada pelo codigo (sem quadrado).
 
 	Splash = {                                     -- telinha de abertura
