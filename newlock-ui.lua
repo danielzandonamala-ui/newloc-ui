@@ -1,14 +1,19 @@
 --[[
 	NEWLOC UI  -  biblioteca de UI estilo menu FiveM (Roblox / Luau)
 
-	Janela:   Library:CreateWindow({ ToggleKey, Nickname, Avatar, Width, Height, Settings })
+	Janela:   Library:CreateWindow({ ToggleKey, Nickname, Avatar, Width, Height, Settings, CloseOnOutsideClick })
+	          ToggleKey padrao = K  ->  minimiza / restaura o menu
+	          CloseOnOutsideClick = false (padrao) -> dropdown e seletor de cor NAO fecham sozinhos ao clicar.
+	          Coloque true se quiser que fechem ao clicar fora deles.
 	Titulo, subtitulo, logo, banner, textos e splash: edite a tabela SOURCE no topo deste arquivo.
 	Aba:      Window:CreateTab({ Name, Icon })
 	Secao:    Tab:CreateSection("Nome")  ou  { Name = "Nome", Side = "Left"/"Right" }
 	Elementos (Section:):
-		CreateButton, CreateToggle, CreateSlider, CreateDropdown, CreateSelector,
-		CreateInput, CreateKeybind, CreateColorPicker, CreateLabel
-	Janela:   Notify, Toggle, Minimize, SaveConfig, LoadConfig, ExportConfig, ImportConfig, Destroy
+		CreateButton ({ Name, Callback, Icon = "copy" opcional }), CreateToggle, CreateSlider,
+		CreateDropdown ({ Name, Options, CurrentValue, Callback, CloseOnSelect = true/false }),
+		CreateSelector, CreateInput, CreateKeybind, CreateColorPicker, CreateLabel
+	Janela:   Notify, Toggle, ToggleMinimize, Minimize, SetSidebarCollapsed, SaveConfig, LoadConfig,
+	          ExportConfig, ImportConfig, Destroy
 	Todo elemento com Flag (ou nome) entra na config exportada/salva.
 ]]
 
@@ -20,28 +25,29 @@ local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local MarketplaceService = game:GetService("MarketplaceService")
 local CoreGui = game:GetService("CoreGui")
+local GuiService = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 
 ------------------------------------------------------------------ CONFIG DO CODIGO-FONTE
 -- Edite aqui (so quem tem a source mexe). Nao aparece na aba Configuracoes.
+-- IMPORTANTE: o Roblox NAO carrega SVG nem WEBP. Use links que entreguem PNG ou JPG.
 local SOURCE = {
-	Title = "NEWLOC MENU",                         -- titulo grande da sidebar
-	Subtitle = "UI Library",                       -- subtitulo da sidebar
-	Logo = "",                                     -- ID ou link de imagem (substitui o titulo grande se quiser)
-	Banner = "",                                   -- ID ou link da imagem do banner
+	Title = "Newlock UI",                         -- titulo grande da sidebar
+	Subtitle = "Newlock",   -- subtitulo da sidebar
+	Logo = "",
+	Banner = "",
 	WelcomeText = "Bem-vindo de volta, {nick}!",   -- texto do banner ({nick} e {title})
 	WelcomeSub = "Aproveite sua experiência com o {title}.",
 
-	ButtonIcon = "https://raw.githubusercontent.com/danielzandonamala-ui/newloc-ui/refs/heads/main/fingerprint.png",
-	                                               -- png do icone dos botoes (impressao digital); suba fingerprint.png no GitHub.
-	                                               -- Se vazio/falhar, usa um desenho padrao.
+	ButtonIcon = "",                               -- PNG branco (link ou ID) do icone dos botoes. SVG nao funciona.
+	                                               -- Vazio = usa a impressao digital desenhada pelo codigo (sem quadrado).
 
 	Splash = {                                     -- telinha de abertura
 		Enabled = true,
-		Title = "NEWLOC MENU",
+		Title = "Newlock Menu",
 		Subtitle = "Carregando...",
-		Image = "",                                -- ID ou link (opcional)
+		Image = "",
 		Duration = 2.5,                            -- segundos
 	},
 }
@@ -169,10 +175,36 @@ local function IsMove(i)
 	return i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch
 end
 
+-- ponto p (Vector2) esta dentro do GuiObject g?
+local function Inside(g, p)
+	local a, s = g.AbsolutePosition, g.AbsoluteSize
+	return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
+end
+
+-- o toque/clique (input) caiu dentro do GuiObject g?
+-- Testa varias formas de coordenada (com e sem o inset da barra do topo, mouse e toque)
+-- e considera "dentro" se QUALQUER uma bater. Assim nunca fecha por engano.
+local function PressedInside(input, g)
+	if not g or not g.Parent then return false end
+	local p = input.Position
+	local inset = GuiService:GetGuiInset()
+	local candidates = {
+		Mouse(),
+		Vector2.new(p.X, p.Y),
+		Vector2.new(p.X + inset.X, p.Y + inset.Y),
+	}
+	for _, v in ipairs(candidates) do
+		if Inside(g, v) then return true end
+	end
+	return false
+end
+
 -- aceita ID numerico, rbxassetid:// ou link (precisa de writefile + getcustomasset no executor)
+-- SVG nao e suportado pelo Roblox, entao e ignorado (cai no desenho padrao)
 local function ResolveImage(src)
 	src = tostring(src or ""):gsub("^%s+", ""):gsub("%s+$", "")
 	if src == "" then return "" end
+	if src:lower():find("%.svg") then return "" end
 	if tonumber(src) then return "rbxassetid://" .. src end
 	if src:find("^rbxasset") then return src end
 	if src:find("^https?://") then
@@ -228,7 +260,8 @@ local function MakeDraggable(w, handle, target, onClick)
 	end)
 end
 
--- icones desenhados com formas (nao dependem de fonte/emoji)
+-- icones desenhados com formas (estilo Lucide, nao dependem de fonte/emoji/imagem)
+-- kinds: x, min, search, check, info, copy, panel-close, panel-open
 local function DrawIcon(w, parent, kind, key)
 	local c = New("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = parent })
 	local function paint(inst, prop)
@@ -239,9 +272,9 @@ local function DrawIcon(w, parent, kind, key)
 		paint(f, "BackgroundColor3")
 		Round(f, 1)
 	end
-	local function ring(size, x, y, th)
-		local r = New("Frame", { Size = UDim2.fromOffset(size, size), Position = UDim2.fromOffset(x, y), BackgroundTransparency = 1, Parent = c })
-		Round(r, size)
+	local function ring(wd, x, y, th, rad, ht)
+		local r = New("Frame", { Size = UDim2.fromOffset(wd, ht or wd), Position = UDim2.fromOffset(x, y), BackgroundTransparency = 1, Parent = c })
+		Round(r, rad or wd)
 		local st = Stroke(r, Color3.new(1, 1, 1), th)
 		paint(st, "Color")
 	end
@@ -257,9 +290,28 @@ local function DrawIcon(w, parent, kind, key)
 		bar(5, 2, 4.5, 9, 45)
 		bar(10, 2, 9.5, 7.5, -50)
 	elseif kind == "info" then
+		-- lucide info: circulo + traco + ponto
 		ring(15, 0.5, 0.5, 1.5)
-		local l = New("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "i", Font = FONTB, TextSize = 11, Parent = c })
-		paint(l, "TextColor3")
+		bar(1.6, 2.8, 8, 9.6)
+		bar(1.8, 1.8, 8, 5.2)
+	elseif kind == "copy" then
+		-- lucide copy: quadrado da frente + "L" de tras
+		bar(8.6, 1.6, 6, 1.4)
+		bar(1.6, 8.6, 1.4, 6)
+		bar(1.6, 3, 10.2, 2.8)
+		ring(9.5, 5.5, 5.5, 1.6, 2.5)
+	elseif kind == "panel-close" then
+		-- lucide panel-left-close: moldura + divisoria + seta <
+		ring(14, 1, 1, 1.6, 3)
+		bar(1.6, 12.4, 5.5, 8)
+		bar(3.6, 1.6, 10.75, 6.75, -45)
+		bar(3.6, 1.6, 10.75, 9.25, 45)
+	elseif kind == "panel-open" then
+		-- lucide panel-left-open: moldura + divisoria + seta >
+		ring(14, 1, 1, 1.6, 3)
+		bar(1.6, 12.4, 5.5, 8)
+		bar(3.6, 1.6, 9.75, 6.75, 45)
+		bar(3.6, 1.6, 9.75, 9.25, -45)
 	end
 	return c
 end
@@ -278,20 +330,39 @@ local function GetFingerprint()
 	return fpAsset
 end
 
-local function AddFingerprint(parent)
-	local holder = New("Frame", { Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = parent })
+-- impressao digital SEM quadrado de fundo, na cor de destaque
+local function AddFingerprint(w, parent)
+	local holder = New("Frame", { Size = UDim2.fromOffset(18, 18), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = parent })
 	task.spawn(function()
 		local img = GetFingerprint()
+		if not holder.Parent then return end
 		if img ~= "" then
-			New("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = img, ScaleType = Enum.ScaleType.Fit, Parent = holder })
+			local il = New("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = img, ScaleType = Enum.ScaleType.Fit, Parent = holder })
+			w:Bind(il, "ImageColor3", "Accent")
 		else
-			for _, sz in ipairs({ 16, 10, 4 }) do
-				local r = New("Frame", { Size = UDim2.fromOffset(sz, sz), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = holder })
-				Round(r, sz)
-				Stroke(r, Color3.new(1, 1, 1), 1.5)
+			-- aneis concentricos com "cortes" (parece impressao digital)
+			local rings = { { 18, 20 }, { 14, 110 }, { 10, 200 }, { 6, 290 } }
+			for _, r in ipairs(rings) do
+				local f = New("Frame", { Size = UDim2.fromOffset(r[1], r[1]), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = holder })
+				Round(f, r[1])
+				local st = Stroke(f, w.Theme.Accent, 1.5)
+				w:Bind(st, "Color", "Accent")
+				New("UIGradient", {
+					Rotation = r[2],
+					Transparency = NumberSequence.new({
+						NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6, 0),
+						NumberSequenceKeypoint.new(0.61, 1), NumberSequenceKeypoint.new(0.78, 1),
+						NumberSequenceKeypoint.new(0.79, 0), NumberSequenceKeypoint.new(1, 0),
+					}),
+					Parent = st,
+				})
 			end
+			local dot = New("Frame", { Size = UDim2.fromOffset(3, 3), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0, Parent = holder })
+			w:Bind(dot, "BackgroundColor3", "Accent")
+			Round(dot, 2)
 		end
 	end)
+	return holder
 end
 
 ------------------------------------------------------------------ janela: base
@@ -346,6 +417,36 @@ end
 
 function Window:Minimize()
 	self:SetState(self.State == "minimized" and "open" or "minimized")
+end
+
+-- tecla padrao (K): minimiza / restaura. Se estiver oculto, volta ao estado anterior.
+function Window:ToggleMinimize()
+	if self.Splashing then return end
+	if self.State == "open" then
+		self:SetState("minimized")
+	elseif self.State == "minimized" then
+		self:SetState("open")
+	else
+		self:SetState(self.LastState or "open")
+	end
+end
+
+-- recolhe / expande a barra lateral
+function Window:SetSidebarCollapsed(c)
+	c = c and true or false
+	if (self.SideCollapsed and true or false) == c then return end
+	self.SideCollapsed = c
+	local wd = c and 0 or 190
+	if not c then self.Side.Visible = true end
+	Tween(self.Side, { Size = UDim2.new(0, wd, 1, 0) }, 0.2)
+	Tween(self.Content, { Position = UDim2.fromOffset(wd, 0), Size = UDim2.new(1, -wd, 1, 0) }, 0.2)
+	self.IconClose.Visible = not c
+	self.IconOpen.Visible = c
+	if c then
+		task.delay(0.22, function()
+			if self.SideCollapsed and self.Side.Parent then self.Side.Visible = false end
+		end)
+	end
 end
 
 function Window:Destroy()
@@ -720,19 +821,24 @@ function Section:CreateLabel(text)
 	return { Set = function(_, t) l.Text = tostring(t) end }
 end
 
+-- Botao: SEM quadrado. Mostra so o icone (impressao digital, ou "copy" com Icon = "copy").
 function Section:CreateButton(o)
 	local w = self.Window
 	local row = self:_row(o.Name)
 	local b = New("TextButton", {
-		Text = "", AutoButtonColor = false,
-		Size = UDim2.fromOffset(40, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+		Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(32, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
 		Parent = row,
 	})
-	w:Bind(b, "BackgroundColor3", "Accent")
-	Round(b, 6)
-	AddFingerprint(b)
-	b.MouseEnter:Connect(function() Tween(b, { BackgroundTransparency = 0.2 }, 0.1) end)
-	b.MouseLeave:Connect(function() Tween(b, { BackgroundTransparency = 0 }, 0.1) end)
+	local icon
+	if o.Icon == "copy" then
+		icon = DrawIcon(w, b, "copy", "Accent")
+	else
+		icon = AddFingerprint(w, b)
+	end
+	local us = New("UIScale", { Parent = icon })
+	b.MouseEnter:Connect(function() Tween(us, { Scale = 1.2 }, 0.1) end)
+	b.MouseLeave:Connect(function() Tween(us, { Scale = 1 }, 0.1) end)
 	b.MouseButton1Click:Connect(function() fire(o.Callback) end)
 	return { Button = b }
 end
@@ -835,6 +941,9 @@ local function BuildChoice(self, o, kind)
 	return obj, w
 end
 
+-- Dropdown: so abre/fecha clicando no botao dele (ou escolhendo um item).
+-- NAO fecha sozinho ao clicar em outros lugares (a menos que a janela tenha CloseOnOutsideClick = true).
+-- Use CloseOnSelect = false para a lista continuar aberta depois de escolher um item.
 function Section:CreateDropdown(o)
 	local obj, w = BuildChoice(self, o)
 	local box = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, BackgroundTransparency = 1, LayoutOrder = self:_next(), Parent = self.Card })
@@ -874,7 +983,7 @@ function Section:CreateDropdown(o)
 			b.MouseLeave:Connect(function() b.BackgroundTransparency = 1 end)
 			b.MouseButton1Click:Connect(function()
 				obj:Set(opt)
-				list.Visible = false
+				if o.CloseOnSelect ~= false then list.Visible = false end
 			end)
 		end
 		render()
@@ -893,6 +1002,14 @@ function Section:CreateDropdown(o)
 	btn.MouseButton1Click:Connect(function()
 		list.Visible = not list.Visible
 	end)
+	-- opcional: clicar fora fecha a lista (desligado por padrao)
+	if w.CloseOnOutsideClick then
+		w:Connect(UserInputService.InputBegan, function(i)
+			if list.Visible and IsPress(i) then
+				if not PressedInside(i, list) and not PressedInside(i, btn) then list.Visible = false end
+			end
+		end)
+	end
 	table.insert(w.Refreshers, render)
 	self:_register(obj, o, "dropdown")
 	build()
@@ -1011,6 +1128,9 @@ function Section:CreateKeybind(o)
 	return obj
 end
 
+-- Seletor de cor: so abre/fecha clicando na caixinha de cor (ou Esc).
+-- NAO fecha sozinho ao clicar no quadrado, na barra de matiz, no hex ou nas cores rapidas
+-- (a menos que a janela tenha CloseOnOutsideClick = true).
 function Section:CreateColorPicker(o)
 	local w = self.Window
 	local box = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, BackgroundTransparency = 1, LayoutOrder = self:_next(), Parent = self.Card })
@@ -1123,6 +1243,16 @@ function Section:CreateColorPicker(o)
 	end)
 	preview.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
+	-- Esc fecha. Clicar fora so fecha se a janela tiver CloseOnOutsideClick = true.
+	w:Connect(UserInputService.InputBegan, function(i)
+		if not panel.Visible then return end
+		if i.KeyCode == Enum.KeyCode.Escape then
+			panel.Visible = false
+		elseif w.CloseOnOutsideClick and IsPress(i) then
+			if not PressedInside(i, panel) and not PressedInside(i, preview) then panel.Visible = false end
+		end
+	end)
+
 	local start = o.CurrentValue or o.Default or Color3.new(1, 1, 1)
 	if typeof(start) == "string" then start = FromHex(start) or Color3.new(1, 1, 1) end
 	local nh, ns, nv = start:ToHSV()
@@ -1163,7 +1293,7 @@ function Window:_buildSettings()
 		})
 	end
 	c:CreateButton({
-		Name = "Restaurar cores padrão", NameButton = "Restaurar",
+		Name = "Restaurar cores padrão",
 		Callback = function()
 			for key, col in pairs(DefaultTheme) do
 				local el = w.Elements["cfg/color/" .. key]
@@ -1175,13 +1305,14 @@ function Window:_buildSettings()
 	-- teclas / janela
 	local k = tab:CreateSection("Teclas e janela")
 	k:CreateKeybind({
-		Name = "Ocultar / mostrar menu", Flag = "cfg/togglekey", CurrentValue = w.ToggleKey,
+		Name = "Minimizar / restaurar menu", Flag = "cfg/togglekey", CurrentValue = w.ToggleKey,
 		OnChanged = function(key)
 			if key then w.ToggleKey = key else w.Elements["cfg/togglekey"]:Set(w.ToggleKey, true) end
 		end,
 	})
-	k:CreateButton({ Name = "Ocultar menu agora", NameButton = "Ocultar", Callback = function() w:SetState("hidden") w.LastState = "open" end })
-	k:CreateButton({ Name = "Minimizar", NameButton = "Minimizar", Callback = function() w:SetState("minimized") end })
+	k:CreateButton({ Name = "Ocultar menu agora", Callback = function() w:SetState("hidden") w.LastState = "open" end })
+	k:CreateButton({ Name = "Minimizar", Callback = function() w:SetState("minimized") end })
+	k:CreateButton({ Name = "Recolher / expandir barra lateral", Callback = function() w:SetSidebarCollapsed(not w.SideCollapsed) end })
 
 	-- config
 	local f = tab:CreateSection("Configuração")
@@ -1192,9 +1323,9 @@ function Window:_buildSettings()
 		Name = "Configs salvas", Options = w:ListConfigs(), CurrentValue = nil, Save = false,
 		Callback = function(v) if v then nameIn:Set(v, true) end end,
 	})
-	f:CreateButton({ Name = "Atualizar lista", NameButton = "Atualizar", Callback = refreshList })
+	f:CreateButton({ Name = "Atualizar lista", Callback = refreshList })
 	f:CreateButton({
-		Name = "Salvar config", NameButton = "Salvar",
+		Name = "Salvar config",
 		Callback = function()
 			local ok, err = w:SaveConfig(nameIn:Get())
 			w:Notify({ Title = ok and "Config salva" or "Erro", Content = ok and CleanName(nameIn:Get()) or tostring(err), Duration = 3 })
@@ -1202,14 +1333,14 @@ function Window:_buildSettings()
 		end,
 	})
 	f:CreateButton({
-		Name = "Carregar config", NameButton = "Carregar",
+		Name = "Carregar config",
 		Callback = function()
 			local ok, err = w:LoadConfig(nameIn:Get())
 			w:Notify({ Title = ok and "Config carregada" or "Erro", Content = ok and CleanName(nameIn:Get()) or tostring(err), Duration = 3 })
 		end,
 	})
 	f:CreateButton({
-		Name = "Deletar config", NameButton = "Deletar",
+		Name = "Deletar config",
 		Callback = function()
 			w:DeleteConfig(nameIn:Get())
 			w:Notify({ Title = "Config deletada", Content = CleanName(nameIn:Get()), Duration = 3 })
@@ -1218,7 +1349,7 @@ function Window:_buildSettings()
 	})
 	local txt = f:CreateInput({ Name = "Texto da config", Placeholder = "Exporte ou cole aqui", Save = false })
 	f:CreateButton({
-		Name = "Exportar (copiar)", NameButton = "Exportar",
+		Name = "Exportar (copiar)", Icon = "copy",
 		Callback = function()
 			local s = w:ExportConfig()
 			txt:Set(s, true)
@@ -1226,13 +1357,13 @@ function Window:_buildSettings()
 		end,
 	})
 	f:CreateButton({
-		Name = "Importar (colar acima)", NameButton = "Importar",
+		Name = "Importar (colar acima)",
 		Callback = function()
 			local ok = w:ImportConfig(txt:Get())
 			w:Notify({ Title = ok and "Config importada" or "Erro", Content = ok and "Tudo aplicado." or "Texto inválido.", Duration = 3 })
 		end,
 	})
-	f:CreateButton({ Name = "Resetar tudo", NameButton = "Resetar", Callback = function() w:ResetAll() end })
+	f:CreateButton({ Name = "Resetar tudo", Callback = function() w:ResetAll() end })
 end
 
 ------------------------------------------------------------------ splash (tela de abertura)
@@ -1288,8 +1419,9 @@ function Library:CreateWindow(o)
 	local w = setmetatable({
 		Theme = table.clone(DefaultTheme), Flags = {}, Elements = {}, Binds = {}, Refreshers = {}, Opaque = {},
 		Tabs = {}, Conns = {}, Keybinds = {},
-		ToggleKey = o.ToggleKey or Enum.KeyCode.RightControl,
-		State = "open", Opacity = 1,
+		ToggleKey = o.ToggleKey or Enum.KeyCode.K,
+		CloseOnOutsideClick = o.CloseOnOutsideClick == true,
+		State = "open", Opacity = 1, SideCollapsed = false,
 		Title = SOURCE.Title, Subtitle = SOURCE.Subtitle,
 		Nick = o.Nickname or LocalPlayer.DisplayName,
 		WelcomeText = SOURCE.WelcomeText,
@@ -1321,7 +1453,8 @@ function Library:CreateWindow(o)
 	w:Bind(mst, "Color", "Stroke")
 
 	-- sidebar
-	local side = New("Frame", { Size = UDim2.new(0, 190, 1, 0), Parent = main })
+	local side = New("Frame", { Size = UDim2.new(0, 190, 1, 0), ClipsDescendants = true, Parent = main })
+	w.Side = side
 	w:Bind(side, "BackgroundColor3", "Sidebar")
 	w:AddOpaque(side)
 	Round(side, 12)
@@ -1367,6 +1500,7 @@ function Library:CreateWindow(o)
 
 	-- conteudo
 	local content = New("Frame", { Size = UDim2.new(1, -190, 1, 0), Position = UDim2.fromOffset(190, 0), BackgroundTransparency = 1, Parent = main })
+	w.Content = content
 	local top = New("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1, Active = true, Parent = content })
 	MakeDraggable(w, top, main)
 
@@ -1384,6 +1518,20 @@ function Library:CreateWindow(o)
 	end
 	topBtn("x", -12).MouseButton1Click:Connect(function() w.LastState = "open" w:SetState("hidden") end)
 	topBtn("min", -46).MouseButton1Click:Connect(function() w:SetState("minimized") end)
+
+	-- botao que recolhe / expande a barra lateral (icones lucide panel-left-close / panel-left-open)
+	local sideBtn = New("TextButton", {
+		Text = "", AutoButtonColor = false, Size = UDim2.fromOffset(28, 28),
+		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromOffset(12, 24), Parent = top,
+	})
+	w:Bind(sideBtn, "BackgroundColor3", "Element")
+	Round(sideBtn, 7)
+	w.IconClose = DrawIcon(w, sideBtn, "panel-close", "Text")
+	w.IconOpen = DrawIcon(w, sideBtn, "panel-open", "Text")
+	w.IconOpen.Visible = false
+	sideBtn.MouseEnter:Connect(function() Tween(sideBtn, { BackgroundColor3 = w.Theme.Accent }, 0.1) end)
+	sideBtn.MouseLeave:Connect(function() Tween(sideBtn, { BackgroundColor3 = w.Theme.Element }, 0.1) end)
+	sideBtn.MouseButton1Click:Connect(function() w:SetSidebarCollapsed(not w.SideCollapsed) end)
 
 	local sbox = New("Frame", { Size = UDim2.fromOffset(210, 30), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -82, 0, 24), Parent = top })
 	w:Bind(sbox, "BackgroundColor3", "Element")
@@ -1526,7 +1674,17 @@ function Library:CreateWindow(o)
 				w:Bind(f, "BackgroundColor3", "Element")
 				Round(f, 6)
 				local l = Label(w, f, { Size = UDim2.new(0.38, 0, 1, 0), Position = UDim2.fromOffset(10, 0) }, "SubText")
-				local v = Label(w, f, { Size = UDim2.new(0.62, -20, 1, 0), Position = UDim2.new(0.38, 10, 0, 0), TextXAlignment = RIGHT, TextTruncate = Enum.TextTruncate.AtEnd })
+				local v = Label(w, f, { Size = UDim2.new(0.62, -44, 1, 0), Position = UDim2.new(0.38, 10, 0, 0), TextXAlignment = RIGHT, TextTruncate = Enum.TextTruncate.AtEnd })
+				-- botao de copiar (icone lucide copy) ao lado do valor
+				local cp = New("TextButton", {
+					Text = "", AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromOffset(24, 24),
+					AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), Parent = f,
+				})
+				local cpIcon = DrawIcon(w, cp, "copy", "SubText")
+				local cpScale = New("UIScale", { Parent = cpIcon })
+				cp.MouseEnter:Connect(function() Tween(cpScale, { Scale = 1.2 }, 0.1) end)
+				cp.MouseLeave:Connect(function() Tween(cpScale, { Scale = 1 }, 0.1) end)
+				cp.MouseButton1Click:Connect(function() w:Copy(v.Text) end)
 				f.MouseButton1Click:Connect(function() w:Copy(v.Text) end)
 				r = { f = f, l = l, v = v }
 				rowsCache[i] = r
@@ -1564,11 +1722,11 @@ function Library:CreateWindow(o)
 		end
 	end)
 
-	-- tecla global
+	-- tecla global (K por padrao): minimiza / restaura o menu
 	w:Connect(UserInputService.InputBegan, function(input, gpe)
 		if gpe or input.UserInputType ~= Enum.UserInputType.Keyboard or w.Listening then return end
 		if input.KeyCode == w.ToggleKey then
-			w:Toggle()
+			w:ToggleMinimize()
 			return
 		end
 		for _, kb in ipairs(w.Keybinds) do
