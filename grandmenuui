@@ -6,6 +6,8 @@
 	          CloseOnOutsideClick = false (padrao) -> dropdown e seletor de cor NAO fecham sozinhos ao clicar.
 	          Mobile = nil (padrao) -> detecta sozinho (tela touch sem teclado/mouse). true/false forca o modo.
 	          SingleColumn = nil (padrao) -> no mobile as secoes ficam em 1 coluna. true/false forca.
+	          FloatButton = true (padrao) -> botao flutuante que reabre o menu quando oculto.
+	          No PC da pra desligar (aqui ou em Configuracoes). No mobile fica sempre ligado.
 	Titulo, subtitulo, logo, banner, textos e splash: edite a tabela SOURCE no topo deste arquivo.
 	Aba:      Window:CreateTab({ Name, Icon })
 	Secao:    Tab:CreateSection("Nome")  ou  { Name = "Nome", Side = "Left"/"Right" }
@@ -14,7 +16,7 @@
 		CreateDropdown ({ Name, Options, CurrentValue, Callback, CloseOnSelect = true/false }),
 		CreateSelector, CreateInput, CreateKeybind, CreateColorPicker, CreateLabel
 	Janela:   Notify, Toggle, ToggleMinimize, Minimize, SetSidebarCollapsed, SaveConfig, LoadConfig,
-	          ExportConfig, ImportConfig, Destroy
+	          ExportConfig, ImportConfig, Destroy, SetScale (0.5 a 1.3), SetFloatEnabled
 	Todo elemento com Flag (ou nome) entra na config exportada/salva.
 
 	MOBILE (o que muda automaticamente):
@@ -334,6 +336,8 @@ local function MakeDraggable(w, handle, target, onClick)
 			local d = Pointer(i) - startP
 			if d.Magnitude > threshold then moved = true end
 			if moved then
+				local us = target:FindFirstChildOfClass("UIScale")
+				d = d / (us and us.Scale or 1)
 				target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
 			end
 		end
@@ -490,7 +494,7 @@ function Window:SetState(s)
 	self.Main.Visible = (s == "open") and not self.Splashing
 	self.Pill.Visible = (s == "minimized") and not self.Splashing
 	-- mobile: sem teclado nao da pra reabrir com a tecla, entao o botao flutuante aparece quando oculto
-	if self.Float then self.Float.Visible = (s == "hidden") and not self.Splashing end
+	if self.Float then self.Float.Visible = (s == "hidden") and not self.Splashing and self.FloatEnabled end
 end
 
 function Window:Toggle()
@@ -505,6 +509,19 @@ end
 
 function Window:Minimize()
 	self:SetState(self.State == "minimized" and "open" or "minimized")
+end
+
+-- botao flutuante (reabre o menu quando oculto). No mobile fica sempre ligado (senao nao ha como reabrir).
+function Window:SetFloatEnabled(v)
+	if self.Mobile then v = true end
+	self.FloatEnabled = v and true or false
+	self:SetState(self.State)
+end
+
+-- tamanho da janela (0.5 a 1.3). O limite real e o que cabe na tela (ver _applyLayout).
+function Window:SetScale(v)
+	self.UserScale = math.clamp(tonumber(v) or 1, 0.5, 1.3)
+	if self.W then self:_applyLayout(false) end
 end
 
 -- tecla padrao (K): minimiza / restaura. Se estiver oculto, volta ao estado anterior.
@@ -724,6 +741,13 @@ function Window:_applyLayout(first)
 	end
 	W, H = math.max(W, 240), math.max(H, 200)
 	self.W, self.H = W, H
+
+	-- tamanho escolhido no slider, limitado ao que cabe na tela
+	if self.MainScale then
+		local maxH = m and (vp.Y - inset.Y - 8) or (vp.Y - 8)
+		local fit = math.min((vp.X - 8) / W, maxH / H)
+		self.MainScale.Scale = math.clamp(self.UserScale, 0.5, math.max(fit, 0.5))
+	end
 
 	local narrow = m and W < 520
 	if first or self._narrow ~= narrow then
@@ -1151,7 +1175,7 @@ function Section:CreateSlider(o)
 	local function update(i)
 		local a = math.clamp((Pointer(i).X - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
 		local v = snap(min + (max - min) * a)
-		if v ~= obj.Value then obj:Set(v) end
+		if v ~= obj.Value then obj:Set(v, o.OnRelease) end
 	end
 	w:Connect(hit.InputBegan, function(i)
 		if IsPress(i) then
@@ -1167,6 +1191,7 @@ function Section:CreateSlider(o)
 		if dragging and Ends(dragInput, i) then
 			dragging, dragInput = false, nil
 			LockScroll(page, false)
+			if o.OnRelease then fire(o.Callback, obj.Value) end
 		end
 	end)
 	self:_register(obj, o, "slider")
@@ -1575,6 +1600,15 @@ function Window:_buildSettings()
 	p:CreateLabel("Dica: use {nick} e {title} nos textos do banner.")
 	p:CreateSlider({ Name = "Opacidade do menu", Flag = "cfg/opacity", Range = { 30, 100 }, CurrentValue = 100, Suffix = "%", Callback = function(v) w:SetOpacity(v / 100) end })
 	p:CreateToggle({ Name = "Mostrar FPS / Ping", Flag = "cfg/stats", CurrentValue = false, Callback = function(v) w.StatsFrame.Visible = v end })
+	-- slider de tamanho: PC e mobile (aplica ao soltar, para o slider nao "pular" enquanto a janela muda de tamanho)
+	p:CreateSlider({
+		Name = "Tamanho do menu", Flag = "cfg/scale", Range = { 50, 130 }, Increment = 5, CurrentValue = 100, Suffix = "%",
+		OnRelease = true, Callback = function(v) w:SetScale(v / 100) end,
+	})
+	-- botao flutuante: no PC da pra desligar (no mobile e sempre ligado, senao nao tem como reabrir o menu)
+	if not w.Mobile then
+		p:CreateToggle({ Name = "Botão flutuante (ao ocultar)", Flag = "cfg/float", CurrentValue = w.FloatEnabled, Callback = function(v) w:SetFloatEnabled(v) end })
+	end
 
 	-- cores
 	local c = tab:CreateSection("Cores")
@@ -1743,7 +1777,9 @@ function Library:CreateWindow(o)
 		WelcomeText = SOURCE.WelcomeText,
 		WelcomeSub = SOURCE.WelcomeSub,
 		FPS = 0, Ping = 0,
+		UserScale = 1, FloatEnabled = (o.FloatButton ~= false),
 	}, Window)
+	if mobile then w.FloatEnabled = true end
 	local m = mobile
 	local TB, TOPH = w.TB, w.TopH
 
@@ -1761,6 +1797,7 @@ function Library:CreateWindow(o)
 	-- tamanho/posicao reais sao definidos em _applyLayout (no fim da criacao)
 	local main = New("Frame", { Name = "Main", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(w.W, w.H), Parent = gui })
 	w.Main = main
+	w.MainScale = New("UIScale", { Parent = main })
 	w:Bind(main, "BackgroundColor3", "Background")
 	w:AddOpaque(main)
 	Round(main, 12)
@@ -1930,8 +1967,9 @@ function Library:CreateWindow(o)
 	Pad(w.PillLabel, 18, 0, 18, 0)
 	MakeDraggable(w, w.Pill, w.Pill, function() w:SetState("open") end)
 
-	-- botao flutuante (so mobile): aparece quando o menu esta oculto. Toque = reabrir, arrastar = mover.
-	if m then
+	-- botao flutuante: aparece quando o menu esta oculto. Toque/clique = reabrir, arrastar = mover.
+	-- (no mobile e sempre ligado; no PC pode ser desligado em Configuracoes)
+	do
 		w.Float = New("TextButton", {
 			Text = "", AutoButtonColor = false, Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.new(1, -14, 0.4, 0), Visible = false, Active = true, ZIndex = 60, Parent = gui,
