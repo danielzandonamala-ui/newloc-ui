@@ -1,1 +1,124 @@
+local ok, NewlocUI = pcall(function()
+	return loadstring(game:HttpGet("https://raw.githubusercontent.com/danielzandonamala-ui/newloc-ui/refs/heads/main/grandmenuui"))()
+end)
+if not ok or not NewlocUI then
+	warn("[FLY] Falha ao carregar a library:", NewlocUI)
+	return
+end
+print("[FLY] Library carregada")
 
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local flying = false
+local speed = 50
+local moveVector = Vector3.new()
+
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+local function updateMoveVector()
+	local cam = workspace.CurrentCamera
+	local look, right = cam.CFrame.LookVector, cam.CFrame.RightVector
+	local f, r, u = 0, 0, 0
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then f += 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then f -= 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then r -= 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then r += 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then u += 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then u -= 1 end
+	local dir = look * f + right * r + Vector3.new(0, 1, 0) * u
+	moveVector = dir.Magnitude > 0 and dir.Unit or Vector3.new()
+end
+
+RunService.RenderStepped:Connect(function()
+	local char = player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then
+		return
+	end
+	character, humanoid, rootPart = char, char.Humanoid, char.HumanoidRootPart
+
+	if flying then
+		updateMoveVector()
+		local _, y = workspace.CurrentCamera.CFrame.Rotation:ToEulerAnglesYXZ()
+		rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, y, 0)
+		rootPart.AssemblyLinearVelocity = moveVector * speed
+		humanoid.AutoRotate = false
+	else
+		humanoid.AutoRotate = true
+	end
+end)
+
+local bypassConns = {}
+local function isFallObj(v)
+	local n = v.Name:lower()
+	return n:find("queda") or n:find("fall")
+end
+local function aplicarBypass(char)
+	for _, v in ipairs(char:GetChildren()) do
+		if isFallObj(v) then v:Destroy() end
+	end
+	table.insert(bypassConns, char.ChildAdded:Connect(function(v)
+		if isFallObj(v) then task.wait() v:Destroy() end
+	end))
+end
+local function setBypass(state)
+	for _, c in ipairs(bypassConns) do c:Disconnect() end
+	table.clear(bypassConns)
+	if state then
+		if player.Character then aplicarBypass(player.Character) end
+		table.insert(bypassConns, player.CharacterAdded:Connect(aplicarBypass))
+	end
+end
+
+local okUI, err = pcall(function()
+	local Window = NewlocUI:CreateWindow({
+		ToggleKey = Enum.KeyCode.K,
+		Width = 800,
+		Height = 500,
+		Settings = true,
+	})
+	print("[FLY] Window criada")
+
+	local Tab = Window:CreateTab({ Name = "Jogador", Icon = "◆" })
+	local Voo = Tab:CreateSection("Voo")
+
+	local flyToggle = Voo:CreateToggle({
+		Name = "Ativar Voo",
+		CurrentValue = false,
+		Flag = "fly",
+		Callback = function(v) flying = v end,
+	})
+
+	Voo:CreateKeybind({
+		Name = "Tecla do Voo",
+		CurrentValue = Enum.KeyCode.E,
+		Callback = function() flyToggle:Set(not flyToggle:Get()) end,
+	})
+
+	Voo:CreateSlider({
+		Name = "Velocidade",
+		Range = { 10, 1000 },
+		Increment = 1,
+		CurrentValue = speed,
+		Flag = "flyspeed",
+		Callback = function(v) speed = v end,
+	})
+
+	local Prot = Tab:CreateSection({ Name = "Proteção", Side = "Right" })
+	Prot:CreateToggle({
+		Name = "Bypass Dano de Queda",
+		CurrentValue = false,
+		Flag = "nofalldamage",
+		Callback = setBypass,
+	})
+
+	Window:Notify({ Title = "NEWLOC", Content = "Menu carregado! Tecla: K", Duration = 4 })
+end)
+
+if not okUI then
+	warn("[FLY] Erro na UI:", err)
+end
