@@ -37,6 +37,7 @@ local Stats = game:GetService("Stats")
 local MarketplaceService = game:GetService("MarketplaceService")
 local CoreGui = game:GetService("CoreGui")
 local GuiService = game:GetService("GuiService")
+local TextService = game:GetService("TextService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -322,6 +323,36 @@ local function Label(w, parent, props, key)
 end
 
 -- arrastar (mouse ou dedo). Se soltar sem mover, chama onClick.
+-- dica flutuante: se o texto nao cabe (cortado com "..."), mostra o texto completo ao passar o mouse (so PC)
+local function AttachTip(w, obj, getText, padX)
+	if w.Mobile then return end
+	padX = padX or 0
+	local function fits()
+		local ok, size = pcall(function()
+			return TextService:GetTextSize(getText(), obj.TextSize, obj.Font, Vector2.new(10000, 10000))
+		end)
+		return not ok or size.X <= obj.AbsoluteSize.X - padX + 1
+	end
+	local function place()
+		local tip = w.Tip
+		if not tip then return end
+		local m = UserInputService:GetMouseLocation()
+		local vp = w.Gui.AbsoluteSize
+		local right, bottom = m.X > vp.X * 0.6, m.Y > vp.Y * 0.8
+		tip.AnchorPoint = Vector2.new(right and 1 or 0, bottom and 1 or 0)
+		tip.Position = UDim2.fromOffset(m.X + (right and -12 or 14), m.Y + (bottom and -12 or 18))
+	end
+	obj.MouseEnter:Connect(function()
+		if w.Tip and not fits() then
+			w.Tip.Text = getText()
+			place()
+			w.Tip.Visible = true
+		end
+	end)
+	obj.MouseMoved:Connect(function() if w.Tip and w.Tip.Visible then place() end end)
+	obj.MouseLeave:Connect(function() if w.Tip then w.Tip.Visible = false end end)
+end
+
 local function MakeDraggable(w, handle, target, onClick)
 	local dragging, moved, startP, startPos, dragInput = false, false, nil, nil, nil
 	local threshold = w.Mobile and 10 or 4
@@ -491,6 +522,7 @@ end
 
 function Window:SetState(s)
 	self.State = s
+	if self.Tip then self.Tip.Visible = false end
 	self.Main.Visible = (s == "open") and not self.Splashing
 	self.Pill.Visible = (s == "minimized") and not self.Splashing
 	-- mobile: sem teclado nao da pra reabrir com a tecla, entao o botao flutuante aparece quando oculto
@@ -1005,7 +1037,7 @@ function Section:_reg(frame, name)
 	table.insert(self.Items, { frame = frame, name = string.lower(tostring(name or "")) })
 end
 
-function Section:_row(name, height, parent)
+function Section:_row(name, height, parent, reserve)
 	local w = self.Window
 	local row = New("Frame", {
 		Size = UDim2.new(1, 0, 0, height or (w.Mobile and 40 or 34)), BackgroundTransparency = 0.6,
@@ -1015,9 +1047,11 @@ function Section:_row(name, height, parent)
 	Round(row, 6)
 	row.Parent = parent or self.Card
 	local label = Label(w, row, {
-		Size = UDim2.new(0.5, -8, 1, 0), Position = UDim2.fromOffset(10, 0), Text = tostring(name or ""),
+		Size = reserve and UDim2.new(1, -(reserve + 18), 1, 0) or UDim2.new(0.5, -8, 1, 0),
+		Position = UDim2.fromOffset(10, 0), Text = tostring(name or ""),
 		TextTruncate = Enum.TextTruncate.AtEnd,
 	})
+	AttachTip(w, label, function() return label.Text end)
 	if not parent then self:_reg(row, name) end
 	return row, label
 end
@@ -1045,7 +1079,7 @@ end
 
 function Section:CreateLabel(text)
 	local w = self.Window
-	local l = Label(w, self.Card, { Size = UDim2.new(1, 0, 0, 20), Text = tostring(text), TextWrapped = true, LayoutOrder = self:_next() }, "SubText")
+	local l = Label(w, self.Card, { Size = UDim2.new(1, 0, 0, 20), Text = tostring(text), TextWrapped = true, RichText = true, LayoutOrder = self:_next() }, "SubText")
 	self:_reg(l, text)
 	return { Set = function(_, t) l.Text = tostring(t) end }
 end
@@ -1055,7 +1089,7 @@ end
 function Section:CreateButton(o)
 	local w = self.Window
 	local m = w.Mobile
-	local row = self:_row(o.Name)
+	local row = self:_row(o.Name, nil, nil, (w.Mobile and 54 or 40))
 	local us
 	local function act()
 		if m and us then
@@ -1089,7 +1123,7 @@ function Section:CreateToggle(o)
 	local m = w.Mobile
 	local SW, SH, KS = m and 48 or 40, m and 26 or 20, m and 20 or 14
 	local KO = (SH - KS) / 2
-	local row = self:_row(o.Name)
+	local row = self:_row(o.Name, nil, nil, (w.Mobile and 64 or 56))
 	local obj
 	RowTap(w, row, function() obj:Set(not obj.Value) end)
 	local sw = New("TextButton", {
@@ -1214,7 +1248,7 @@ function Section:CreateDropdown(o)
 	local m = w.Mobile
 	local box = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, BackgroundTransparency = 1, LayoutOrder = self:_next(), Parent = self.Card })
 	List(box, 4)
-	local row = self:_row(o.Name, nil, box)
+	local row = self:_row(o.Name, nil, box, (not w.Mobile) and 148 or nil)
 	self:_reg(box, o.Name)
 	local list
 	RowTap(w, row, function() list.Visible = not list.Visible end)
@@ -1227,7 +1261,12 @@ function Section:CreateDropdown(o)
 	Round(btn, 6)
 	local txt = Label(w, btn, { Size = UDim2.new(1, -26, 1, 0), Position = UDim2.fromOffset(8, 0), TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd })
 	Label(w, btn, { Size = UDim2.new(0, 16, 1, 0), Position = UDim2.new(1, -20, 0, 0), Text = "v", Font = FONTB, TextSize = 11, TextXAlignment = CENTER }, "SubText")
-	list = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, Visible = false, LayoutOrder = 2, Parent = box })
+	AttachTip(w, txt, function() return txt.Text end)
+	list = New("ScrollingFrame", {
+		Size = UDim2.new(1, 0, 0, 8), AutomaticSize = Enum.AutomaticSize.None, Visible = false, LayoutOrder = 2,
+		CanvasSize = UDim2.new(), AutomaticCanvasSize = AUTOY, ScrollBarThickness = 3, BorderSizePixel = 0,
+		ScrollingDirection = Enum.ScrollingDirection.Y, ClipsDescendants = true, Parent = box,
+	})
 	w:Bind(list, "BackgroundColor3", "Background")
 	Round(list, 6)
 	Pad(list, 4)
@@ -1246,8 +1285,11 @@ function Section:CreateDropdown(o)
 		for i, opt in ipairs(obj.Options) do
 			local b = New("TextButton", {
 				Text = tostring(opt), Font = FONT, TextSize = m and 13 or 12, BackgroundTransparency = 1, AutoButtonColor = false,
-				Size = UDim2.new(1, 0, 0, m and 32 or 24), LayoutOrder = i, Parent = list,
+				Size = UDim2.new(1, -8, 0, m and 32 or 24), LayoutOrder = i, Parent = list,
+				TextTruncate = Enum.TextTruncate.AtEnd, TextXAlignment = LEFT,
 			})
+			New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = b })
+			AttachTip(w, b, function() return b.Text end, 16)
 			Hover(w, b,
 				function() b.BackgroundTransparency = 0.85 b.BackgroundColor3 = w.Theme.Accent end,
 				function() b.BackgroundTransparency = 1 end)
@@ -1256,6 +1298,8 @@ function Section:CreateDropdown(o)
 				if o.CloseOnSelect ~= false then list.Visible = false end
 			end)
 		end
+		-- altura da lista: ate ~6 opcoes visiveis, o resto rola
+		list.Size = UDim2.new(1, 0, 0, math.min(#obj.Options * ((m and 32 or 24) + 2) + 8, m and 200 or 164))
 		render()
 	end
 	function obj:Get() return self.Value end
@@ -1290,7 +1334,7 @@ function Section:CreateSelector(o)
 	local obj, w = BuildChoice(self, o)
 	local m = w.Mobile
 	local AW = m and 30 or 24
-	local row = self:_row(o.Name)
+	local row = self:_row(o.Name, nil, nil, (not w.Mobile) and 168 or nil)
 	local box = New("Frame", {
 		Size = self:_ctl(160, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Parent = row,
 	})
@@ -1332,7 +1376,7 @@ end
 function Section:CreateInput(o)
 	local w = self.Window
 	local m = w.Mobile
-	local row = self:_row(o.Name)
+	local row = self:_row(o.Name, nil, nil, (not w.Mobile) and 168 or nil)
 	local box = New("TextBox", {
 		Size = self:_ctl(160, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
 		Font = FONT, TextSize = m and 13 or 12, PlaceholderText = o.Placeholder or "Digite...", Text = tostring(o.CurrentValue or ""),
@@ -1360,7 +1404,7 @@ end
 function Section:CreateKeybind(o)
 	local w = self.Window
 	local m = w.Mobile
-	local row = self:_row(o.Name)
+	local row = self:_row(o.Name, nil, nil, (w.Mobile and 104 or 100))
 	local btn = New("TextButton", {
 		Size = m and UDim2.fromOffset(96, 30) or UDim2.fromOffset(92, 24), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
 		Font = FONTB, TextSize = 12, AutoButtonColor = false, Text = "", Parent = row,
@@ -1425,7 +1469,7 @@ function Section:CreateColorPicker(o)
 	local page = self.Tab.Page
 	local box = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTOY, BackgroundTransparency = 1, LayoutOrder = self:_next(), Parent = self.Card })
 	List(box, 4)
-	local row = self:_row(o.Name, nil, box)
+	local row = self:_row(o.Name, nil, box, (w.Mobile and 64 or 54))
 	self:_reg(box, o.Name)
 	local panel
 	RowTap(w, row, function() panel.Visible = not panel.Visible end)
@@ -1793,6 +1837,21 @@ function Library:CreateWindow(o)
 		if g ~= gui and g.Name == "NewlocUI" then g:Destroy() end
 	end
 	w.Gui = gui
+
+	-- dica flutuante (texto completo de itens cortados)
+	local tip = New("TextLabel", {
+		Name = "Tip", Visible = false, ZIndex = 1000, AutomaticSize = Enum.AutomaticSize.XY, Size = UDim2.fromOffset(0, 0),
+		BackgroundTransparency = 0, BorderSizePixel = 0, Font = FONT, TextSize = 12, TextWrapped = true,
+		TextXAlignment = LEFT, Text = "", Parent = gui,
+	})
+	New("UISizeConstraint", { MaxSize = Vector2.new(320, 400), Parent = tip })
+	Pad(tip, 8, 5, 8, 5)
+	Round(tip, 6)
+	local tipStroke = Stroke(tip, w.Theme.Stroke, 1)
+	w:Bind(tip, "BackgroundColor3", "Background")
+	w:Bind(tip, "TextColor3", "Text")
+	w:Bind(tipStroke, "Color", "Stroke")
+	w.Tip = tip
 
 	-- tamanho/posicao reais sao definidos em _applyLayout (no fim da criacao)
 	local main = New("Frame", { Name = "Main", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(w.W, w.H), Parent = gui })
