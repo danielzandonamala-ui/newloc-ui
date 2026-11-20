@@ -325,9 +325,10 @@ end
 -- arrastar (mouse ou dedo). Se soltar sem mover, chama onClick.
 -- DICA com o texto completo: registra o texto; Window:_updateTip() descobre sozinho qual texto cortado
 -- esta embaixo do mouse (nao depende do evento MouseEnter, que nem sempre dispara). So PC.
-local function AttachTip(w, obj, getText, padX)
+-- obj = texto (que pode ser cortado); hit = area que ativa a dica (padrao: o proprio texto; nos controles, a linha inteira)
+local function AttachTip(w, obj, getText, padX, hit)
 	if w.Mobile or not obj then return end
-	table.insert(w.TipTargets, { obj = obj, get = getText or function() return obj.Text end, pad = padX or 0 })
+	table.insert(w.TipTargets, { obj = obj, hit = hit or obj, get = getText or function() return obj.Text end, pad = padX or 0 })
 end
 
 local function PlainText(t)
@@ -362,7 +363,7 @@ function Window:_updateTip()
 		local o = e.obj
 		if not o.Parent then
 			table.remove(t, i)
-		elseif not text and Inside(o, m) and Shown(o, self.Gui, m) then
+		elseif not text and e.hit.Parent and Inside(e.hit, m) and Shown(o, self.Gui, m) then
 			local full = PlainText(e.get())
 			local ok, size = pcall(function()
 				return TextService:GetTextSize(full, o.TextSize, o.Font, Vector2.new(10000, 10000))
@@ -992,7 +993,7 @@ function Window:CreateTab(o)
 		Font = FONTB, TextSize = m and 12 or 13, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, Parent = btn,
 	})
 
-	AttachTip(w, tab.NameLabel, function() return tab.Name end)
+	AttachTip(w, tab.NameLabel, function() return tab.Name end, 0, btn)
 
 	local page = New("ScrollingFrame", {
 		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = m and 2 or 3,
@@ -1084,7 +1085,7 @@ function Section:_row(name, height, parent, reserve)
 		Position = UDim2.fromOffset(10, 0), Text = tostring(name or ""),
 		TextTruncate = Enum.TextTruncate.AtEnd,
 	})
-	AttachTip(w, label, function() return label.Text end)
+	AttachTip(w, label, function() return label.Text end, 0, row)
 	if not parent then self:_reg(row, name) end
 	return row, label
 end
@@ -1294,7 +1295,7 @@ function Section:CreateDropdown(o)
 	Round(btn, 6)
 	local txt = Label(w, btn, { Size = UDim2.new(1, -26, 1, 0), Position = UDim2.fromOffset(8, 0), TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd })
 	Label(w, btn, { Size = UDim2.new(0, 16, 1, 0), Position = UDim2.new(1, -20, 0, 0), Text = "v", Font = FONTB, TextSize = 11, TextXAlignment = CENTER }, "SubText")
-	AttachTip(w, txt, function() return txt.Text end)
+	AttachTip(w, txt, function() return txt.Text end, 0, btn)
 	list = New("ScrollingFrame", {
 		Size = UDim2.new(1, 0, 0, 8), AutomaticSize = Enum.AutomaticSize.None, Visible = false, LayoutOrder = 2,
 		CanvasSize = UDim2.new(), AutomaticCanvasSize = AUTOY, ScrollBarThickness = 3, BorderSizePixel = 0,
