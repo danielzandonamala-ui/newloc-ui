@@ -355,7 +355,14 @@ function Window:_updateTip()
 		tip.Visible = false
 		return
 	end
+	local now = os.clock()
+	if self._tipT and now - self._tipT < 0.04 then return end -- no maximo ~25x por segundo
+	self._tipT = now
 	local m = UserInputService:GetMouseLocation()
+	if self.Main and not Inside(self.Main, m) then
+		tip.Visible = false
+		return
+	end
 	local text
 	local t = self.TipTargets
 	for i = #t, 1, -1 do
@@ -1315,6 +1322,7 @@ function Section:CreateDropdown(o)
 		end
 	end
 	local function build()
+		local keepPos = list.CanvasPosition
 		for _, c in ipairs(list:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
 		for i, opt in ipairs(obj.Options) do
 			local b = New("TextButton", {
@@ -1335,6 +1343,10 @@ function Section:CreateDropdown(o)
 		-- altura da lista: ate ~6 opcoes visiveis, o resto rola
 		list.Size = UDim2.new(1, 0, 0, math.min(#obj.Options * ((m and 32 or 24) + 2) + 8, m and 200 or 164))
 		render()
+		-- reconstruir a lista (ex.: selecao multipla) nao pode jogar a rolagem de volta ao topo
+		task.defer(function()
+			if list.Parent then list.CanvasPosition = keepPos end
+		end)
 	end
 	function obj:Get() return self.Value end
 	function obj:Set(v, silent)
