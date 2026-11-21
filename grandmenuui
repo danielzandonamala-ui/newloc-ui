@@ -1461,7 +1461,12 @@ function Section:CreateKeybind(o)
 	local obj = { Key = nil }
 	local function toKey(v)
 		if typeof(v) == "EnumItem" then return v end
-		if type(v) == "string" and v ~= "None" then return Enum.KeyCode[v] end
+		if type(v) == "string" and v ~= "None" then
+			local ok, k = pcall(function() return Enum.KeyCode[v] end)
+			if ok and k then return k end
+			local ok2, u = pcall(function() return Enum.UserInputType[v] end)
+			return ok2 and u or nil
+		end
 		return nil
 	end
 	obj.Key = toKey(o.CurrentValue)
