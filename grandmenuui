@@ -7,7 +7,8 @@
 	          Mobile = nil (padrao) -> detecta sozinho (tela touch sem teclado/mouse). true/false forca o modo.
 	          SingleColumn = nil (padrao) -> no mobile as secoes ficam em 1 coluna. true/false forca.
 	          FloatButton = true (padrao) -> botao flutuante que reabre o menu quando oculto.
-	          No PC da pra desligar (aqui ou em Configuracoes). No mobile fica sempre ligado.
+	          No PC da pra ocultar (aqui com FloatButton = false, ou em Configuracoes > "Ocultar botao flutuante").
+	          Com o botao oculto, reabra o menu pela tecla (K). No mobile fica sempre ligado.
 	Titulo, subtitulo, logo, banner, textos e splash: edite a tabela SOURCE no topo deste arquivo.
 	Aba:      Window:CreateTab({ Name, Icon })
 	Secao:    Tab:CreateSection("Nome")  ou  { Name = "Nome", Side = "Left"/"Right" }
@@ -582,6 +583,7 @@ function Window:Minimize()
 end
 
 -- botao flutuante (reabre o menu quando oculto). No mobile fica sempre ligado (senao nao ha como reabrir).
+-- No PC, FloatEnabled = false oculta o botao de vez (reabra o menu pela tecla).
 function Window:SetFloatEnabled(v)
 	if self.Mobile then v = true end
 	self.FloatEnabled = v and true or false
@@ -1699,9 +1701,13 @@ function Window:_buildSettings()
 		Name = "Tamanho do menu", Flag = "cfg/scale", Range = { 50, 130 }, Increment = 5, CurrentValue = 100, Suffix = "%",
 		OnRelease = true, Callback = function(v) w:SetScale(v / 100) end,
 	})
-	-- botao flutuante: no PC da pra desligar (no mobile e sempre ligado, senao nao tem como reabrir o menu)
+	-- ocultar botao flutuante: so no PC (no mobile e sempre ligado, senao nao tem como reabrir o menu).
+	-- Ativado = o botao nunca aparece; reabra o menu oculto pela tecla (K por padrao).
 	if not w.Mobile then
-		p:CreateToggle({ Name = "Botão flutuante (ao ocultar)", Flag = "cfg/float", CurrentValue = w.FloatEnabled, Callback = function(v) w:SetFloatEnabled(v) end })
+		p:CreateToggle({
+			Name = "Ocultar botão flutuante", Flag = "cfg/hidefloat", CurrentValue = not w.FloatEnabled,
+			Callback = function(v) w:SetFloatEnabled(not v) end,
+		})
 	end
 
 	-- cores
@@ -2082,7 +2088,7 @@ function Library:CreateWindow(o)
 	MakeDraggable(w, w.Pill, w.Pill, function() w:SetState("open") end)
 
 	-- botao flutuante: aparece quando o menu esta oculto. Toque/clique = reabrir, arrastar = mover.
-	-- (no mobile e sempre ligado; no PC pode ser desligado em Configuracoes)
+	-- (no mobile e sempre ligado; no PC pode ser ocultado em Configuracoes)
 	do
 		w.Float = New("TextButton", {
 			Text = "", AutoButtonColor = false, Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(1, 0.5),
