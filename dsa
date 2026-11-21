@@ -1,0 +1,190 @@
+-- MOBILE FIX para o Oi Hub / Grand Menu
+-- Execute DEPOIS que o hub carregou. Pode executar de novo sem problema.
+
+local g = getgenv and getgenv() or _G
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+
+if g.__MOBILEFIX_CLEAN then pcall(g.__MOBILEFIX_CLEAN) end
+
+local rt = g.__KNWARE_SINTONIA_RUNTIME
+local S = rt and rt.state
+if not S then
+  warn("[MobileFix] carregue o hub antes de rodar este script")
+  return
+end
+
+local mobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
+local conns, objs = {}, {}
+
+local function on(sig, fn)
+  local c = sig:Connect(fn)
+  conns[#conns + 1] = c
+  return c
+end
+
+g.__MOBILEFIX_CLEAN = function()
+  for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+  for _, o in ipairs(objs) do pcall(function() o:Destroy() end) end
+end
+
+-- 1) AIMBOT: no celular nao existe botao direito do mouse -> mira sempre que estiver ligado
+if mobile then
+  g.f148 = function() return true end
+  on(RS.Heartbeat, function()
+    if S.aimbotEnabled and S.aimbotMode == "Alternado" then g.v555 = true end
+  end)
+end
+
+-- 2) HIGHLIGHT do ESP (o original era um stub que nao fazia nada)
+g.v543 = function(b, char)
+  local h = b.highlight
+  if h and h.Parent then
+    if h.Adornee ~= char then h.Adornee = char end
+    return h
+  end
+  h = Instance.new("Highlight")
+  h.Name = "MFHighlight"
+  h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+  h.FillTransparency = 0.7
+  local c = b.relationshipColor or Color3.new(1, 1, 1)
+  h.FillColor = c
+  h.OutlineColor = c
+  h.Adornee = char
+  h.Parent = workspace.CurrentCamera or workspace
+  b.highlight = h
+  return h
+end
+
+-- 3) BOTOES NA TELA (FREAR, SOBE, DESCE)
+local gui = Instance.new("ScreenGui")
+gui.Name = "MobileFix"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 60
+local okH, hui = pcall(function() return gethui and gethui() end)
+gui.Parent = (okH and hui) or game:GetService("CoreGui")
+objs[#objs + 1] = gui
+
+local function holdButton(text, pos, color, down, up)
+  local b = Instance.new("TextButton")
+  b.Size = UDim2.fromOffset(88, 56)
+  b.Position = pos
+  b.BackgroundColor3 = color
+  b.Text = text
+  b.TextColor3 = Color3.new(1, 1, 1)
+  b.TextSize = 16
+  b.Font = Enum.Font.GothamBold
+  b.AutoButtonColor = false
+  b.Visible = false
+  b.Parent = gui
+  local cr = Instance.new("UICorner")
+  cr.CornerRadius = UDim.new(0, 10)
+  cr.Parent = b
+  b.InputBegan:Connect(function(i)
+    local t = i.UserInputType
+    if t ~= Enum.UserInputType.Touch and t ~= Enum.UserInputType.MouseButton1 then return end
+    down()
+    local c
+    c = i.Changed:Connect(function()
+      if i.UserInputState == Enum.UserInputState.End then
+        c:Disconnect()
+        up()
+      end
+    end)
+  end)
+  return b
+end
+
+local held = { up = false, down = false }
+
+local brake = holdButton("FREAR", UDim2.new(1, -110, 0.5, 40), Color3.fromRGB(200, 45, 55),
+  function() S.superFreioBotao = true; S.superFreioSegurando = true end,
+  function() S.superFreioSegurando = false end)
+
+local upB = holdButton("SOBE", UDim2.new(1, -110, 0.5, -100), Color3.fromRGB(40, 120, 200),
+  function() held.up = true end, function() held.up = false end)
+
+local dnB = holdButton("DESCE", UDim2.new(1, -110, 0.5, -36), Color3.fromRGB(40, 120, 200),
+  function() held.down = true end, function() held.down = false end)
+
+local wasHeld = false
+on(RS.Heartbeat, function()
+  local ch = lp.Character
+  local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+  local seated = hum ~= nil and hum.SeatPart ~= nil
+
+  brake.Visible = mobile and seated
+  local vf = mobile and seated and S.vFlyEnabled == true
+  upB.Visible = vf
+  dnB.Visible = vf
+
+  local st = g.v523
+  if vf and st and st.raiz and st.raiz.Parent then
+    if held.up or held.down then
+      local d = held.up and 1 or -1
+      st.altitude = st.raiz.Position.Y + d * (S.vFlyVerticalSpeed / 10)
+      wasHeld = true
+    elseif wasHeld then
+      st.altitude = st.raiz.Position.Y
+      wasHeld = false
+    end
+  end
+end)
+
+-- 4) PAINEL DE DIAGNOSTICO (toque nele para esconder)
+local drawingOk = false
+do
+  local ok, d = pcall(function() return Drawing.new("Square") end)
+  if ok and d then
+    drawingOk = true
+    pcall(function() d:Remove() end)
+  end
+end
+
+local lbl = Instance.new("TextLabel")
+lbl.Size = UDim2.fromOffset(340, 84)
+lbl.Position = UDim2.fromOffset(6, 40)
+lbl.BackgroundColor3 = Color3.new(0, 0, 0)
+lbl.BackgroundTransparency = 0.4
+lbl.TextColor3 = Color3.new(1, 1, 1)
+lbl.TextSize = 11
+lbl.Font = Enum.Font.Code
+lbl.TextXAlignment = Enum.TextXAlignment.Left
+lbl.TextYAlignment = Enum.TextYAlignment.Top
+lbl.TextWrapped = true
+lbl.Active = true
+lbl.Parent = gui
+lbl.InputBegan:Connect(function(i)
+  if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+    lbl.Visible = false
+  end
+end)
+
+local function fmt(v) return v and "on" or "off" end
+
+task.spawn(function()
+  while lbl.Parent and not S.destroyed_flag do
+    local n = 0
+    for _ in pairs(S.bundles or {}) do n = n + 1 end
+    local ch = lp.Character
+    local tool = ch and ch:FindFirstChildOfClass("Tool")
+    local hasCfg = tool and tool:FindFirstChild("Cfg") ~= nil
+    local v562 = g.v562
+    local fnOk = v562 and (v562.fn ~= nil) or false
+    lbl.Text = string.format(
+      "ESP %s box %s nome %s hl %s | alvos %d\n" ..
+      "muni %s fn %s | arma %s cfg %s\n" ..
+      "walk %s fly %s aim %s | drawing %s\n" ..
+      "err: %s",
+      fmt(S.espEnabled), fmt(S.box), fmt(S.name), fmt(S.highlight), n,
+      fmt(S.armaInfAmmo), tostring(fnOk), tool and tool.Name or "-", tostring(hasCfg),
+      fmt(S.spoofWalkEnabled), fmt(S.flyEnabled), fmt(S.aimbotEnabled), tostring(drawingOk),
+      tostring(rt.espErro or "nenhum")
+    )
+    task.wait(0.5)
+  end
+end)
+
+print("[MobileFix] ativo | mobile = " .. tostring(mobile))
